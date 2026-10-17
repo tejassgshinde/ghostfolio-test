@@ -144,6 +144,36 @@ export class GfHoldingsTableComponent {
       : '';
   }
 
+  protected getQuantityPrecision({
+    assetProfile,
+    quantity
+  }: HoldingsTableItem): number | undefined {
+    if (
+      assetProfile?.assetSubClass !== 'CRYPTOCURRENCY' ||
+      quantity === undefined
+    ) {
+      return undefined;
+    }
+
+    if (Number.isInteger(quantity)) {
+      return 0;
+    }
+
+    if (quantity < 10) {
+      return 8;
+    }
+
+    if (quantity < 1000) {
+      return 6;
+    }
+
+    if (quantity >= 10000000) {
+      return 0;
+    }
+
+    return undefined;
+  }
+
   protected onOpenHoldingDialog({
     dataSource,
     symbol

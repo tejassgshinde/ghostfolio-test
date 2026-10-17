@@ -65,6 +65,17 @@ export const Default: Story = {
   }
 };
 
+export const FractionalCryptocurrency: Story = {
+  args: {
+    ...Default.args,
+    holdings: holdings.map((holding) => {
+      return holding.assetProfile.assetSubClass === 'CRYPTOCURRENCY'
+        ? { ...holding, quantity: 0.01525217 }
+        : holding;
+    })
+  }
+};
+
 export const Simple: Story = {
   args: {
     ...Default.args,
