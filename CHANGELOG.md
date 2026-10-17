@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Fixed the data source mapping in the data provider service to apply only to the mapped data source
+- Fixed the unreadable options of the safe withdrawal rate (SWR) dropdown on the _FIRE_ page
 
 ## 3.87.0 - 2026-10-17
 
