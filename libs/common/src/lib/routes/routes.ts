@@ -69,9 +69,9 @@ export const internalRoutes = {
             title: $localize`Add Asset Profile`
           },
           update: {
-            path: 'update',
+            path: ':dataSource/:symbol',
             routerLink: (aDataSource: string, aSymbol: string) => {
-              return ['/admin', 'market-data', aDataSource, aSymbol, 'update'];
+              return ['/admin', 'market-data', aDataSource, aSymbol];
             },
             title: $localize`Asset Profile`
           }

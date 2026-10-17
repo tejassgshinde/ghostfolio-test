@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Refactored the routing of the asset profile dialog in the admin control panel to use path segments instead of query parameters
 - Improved the accessibility of the _Google_ icon in the login with access token dialog
 - Improved the accessibility of the _Google_ icon on the registration page
 - Improved the search by ISIN number in the _Financial Modeling Prep_ service

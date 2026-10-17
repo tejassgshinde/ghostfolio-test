@@ -58,15 +58,10 @@ export const routes: Routes = [
             title: create.title
           },
           {
-            children: [
-              {
-                component: GfAssetProfileDialogHostComponent,
-                data: { mode: 'update' },
-                path: update.path,
-                title: update.title
-              }
-            ],
-            path: ':dataSource/:symbol'
+            component: GfAssetProfileDialogHostComponent,
+            data: { mode: 'update' },
+            path: ':dataSource/:symbol',
+            title: update.title
           }
         ],
         component: GfAdminMarketDataComponent,
