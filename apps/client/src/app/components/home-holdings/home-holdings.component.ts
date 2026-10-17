@@ -1,3 +1,4 @@
+import { GfMissingExchangeRatesWarningComponent } from '@ghostfolio/client/components/missing-exchange-rates-warning/missing-exchange-rates-warning.component';
 import { UserService } from '@ghostfolio/client/services/user/user.service';
 import {
   DEFAULT_CURRENCY,
@@ -44,6 +45,7 @@ import { DeviceDetectorService } from 'ngx-device-detector';
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     GfHoldingsTableComponent,
+    GfMissingExchangeRatesWarningComponent,
     GfToggleComponent,
     GfTreemapChartComponent,
     MatButtonModule,
@@ -73,6 +75,7 @@ export class GfHomeHoldingsComponent implements OnInit {
     return this.deviceDetectorService.deviceInfo().deviceType;
   });
 
+  protected exchangeRateErrors: AssetProfileIdentifier[] = [];
   protected hasPermissionToAccessHoldingsChart: boolean;
   protected hasPermissionToCreateActivity: boolean;
   protected holdings: PortfolioPosition[] | undefined;
@@ -204,11 +207,13 @@ export class GfHomeHoldingsComponent implements OnInit {
         GfHomeHoldingsComponent.DEFAULT_HOLDINGS_VIEW_MODE;
     }
 
+    this.exchangeRateErrors = [];
     this.holdings = undefined;
 
     this.fetchHoldings()
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe(({ holdings }) => {
+      .subscribe(({ exchangeRateErrors, holdings }) => {
+        this.exchangeRateErrors = exchangeRateErrors ?? [];
         this.holdings = holdings;
 
         this.changeDetectorRef.markForCheck();

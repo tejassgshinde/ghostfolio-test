@@ -1,3 +1,4 @@
+import { GfMissingExchangeRatesWarningComponent } from '@ghostfolio/client/components/missing-exchange-rates-warning/missing-exchange-rates-warning.component';
 import { GfPortfolioPerformanceComponent } from '@ghostfolio/client/components/portfolio-performance/portfolio-performance.component';
 import { LayoutService } from '@ghostfolio/client/core/layout.service';
 import { ImpersonationStorageService } from '@ghostfolio/client/services/impersonation-storage.service';
@@ -43,6 +44,7 @@ import { DeviceDetectorService } from 'ngx-device-detector';
   imports: [
     GfHoldingsTableComponent,
     GfLineChartComponent,
+    GfMissingExchangeRatesWarningComponent,
     GfPortfolioPerformanceComponent,
     MatButtonModule,
     MatCardModule,
@@ -54,6 +56,7 @@ import { DeviceDetectorService } from 'ngx-device-detector';
 })
 export class GfHomeOverviewComponent implements OnInit {
   protected readonly errors = signal<AssetProfileIdentifier[]>([]);
+  protected readonly exchangeRateErrors = signal<AssetProfileIdentifier[]>([]);
   protected readonly hasImpersonationId = signal(false);
   protected readonly historicalDataItems = signal<LineChartItem[] | null>(null);
   protected readonly holdings = signal<PortfolioPosition[] | undefined>(
@@ -162,6 +165,7 @@ export class GfHomeOverviewComponent implements OnInit {
   private update() {
     const userSettings = this.user()?.settings;
 
+    this.exchangeRateErrors.set([]);
     this.historicalDataItems.set(null);
     this.isLoadingPerformance.set(true);
 
@@ -194,8 +198,9 @@ export class GfHomeOverviewComponent implements OnInit {
         range: userSettings?.dateRange ?? DEFAULT_DATE_RANGE
       })
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe(({ chart, errors, performance }) => {
+      .subscribe(({ chart, errors, exchangeRateErrors, performance }) => {
         this.errors.set(errors ?? []);
+        this.exchangeRateErrors.set(exchangeRateErrors ?? []);
         this.performance.set(performance);
 
         this.historicalDataItems.set(

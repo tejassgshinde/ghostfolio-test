@@ -459,7 +459,11 @@ describe('PortfolioService', () => {
 
       jest
         .spyOn(activitiesService, 'getActivitiesForPortfolioCalculator')
-        .mockResolvedValue({ activities: [], count: 0 });
+        .mockResolvedValue({
+          activities: [],
+          count: 0,
+          exchangeRateErrors: []
+        });
 
       jest
         .spyOn(dataProviderService, 'getDataSourceForExchangeRates')
@@ -632,6 +636,51 @@ describe('PortfolioService', () => {
         userId: userDummyData.id
       });
     });
+
+    it('should return the exchange rate errors and set hasErrors if activities were skipped', async () => {
+      setUpCashOnlyPortfolio();
+
+      const exchangeRateErrors = [
+        { dataSource: DataSource.YAHOO, symbol: 'AAPL' }
+      ];
+
+      jest
+        .spyOn(activitiesService, 'getActivitiesForPortfolioCalculator')
+        .mockResolvedValue({ activities: [], count: 0, exchangeRateErrors });
+
+      const result = await portfolioService.getDetails({
+        filters: [],
+        userId: userDummyData.id
+      });
+
+      expect(result.exchangeRateErrors).toEqual(exchangeRateErrors);
+      expect(result.hasErrors).toBe(true);
+    });
+
+    it.each([
+      { description: 'empty', exchangeRateErrors: [] },
+      {
+        description: 'omitted',
+        exchangeRateErrors: undefined as unknown as []
+      }
+    ])(
+      'should return no exchange rate errors and keep hasErrors of the snapshot if the loader returns them $description',
+      async ({ exchangeRateErrors }) => {
+        setUpCashOnlyPortfolio();
+
+        jest
+          .spyOn(activitiesService, 'getActivitiesForPortfolioCalculator')
+          .mockResolvedValue({ activities: [], count: 0, exchangeRateErrors });
+
+        const result = await portfolioService.getDetails({
+          filters: [],
+          userId: userDummyData.id
+        });
+
+        expect(result.exchangeRateErrors).toEqual([]);
+        expect(result.hasErrors).toBe(false);
+      }
+    );
   });
 
   describe('getHoldings', () => {
@@ -660,7 +709,7 @@ describe('PortfolioService', () => {
     });
 
     it('should request all holdings when the holding type is not specified', async () => {
-      const holdings = await portfolioService.getHoldings({
+      const { holdings } = await portfolioService.getHoldings({
         dateRange: 'max',
         userId: userDummyData.id
       });
@@ -675,13 +724,34 @@ describe('PortfolioService', () => {
     });
 
     it('should find a closed holding when the holding type is not specified', async () => {
-      const holdings = await portfolioService.getHoldings({
+      const { holdings } = await portfolioService.getHoldings({
         dateRange: 'max',
         filters: [{ id: 'Microsoft', type: 'SEARCH_QUERY' }],
         userId: userDummyData.id
       });
 
       expect(holdings).toEqual([closedHolding]);
+    });
+
+    it('should return the exchange rate errors of the details with the holdings', async () => {
+      const exchangeRateErrors = [
+        { dataSource: DataSource.YAHOO, symbol: 'AAPL' }
+      ];
+
+      jest.spyOn(portfolioService, 'getDetails').mockResolvedValue({
+        exchangeRateErrors,
+        holdings: [activeHolding, closedHolding]
+      } as unknown as Awaited<ReturnType<typeof portfolioService.getDetails>>);
+
+      const result = await portfolioService.getHoldings({
+        dateRange: 'max',
+        userId: userDummyData.id
+      });
+
+      expect(result).toEqual({
+        exchangeRateErrors,
+        holdings: [activeHolding, closedHolding]
+      });
     });
 
     it.each(['ACTIVE', 'CLOSED'])(
@@ -736,8 +806,13 @@ describe('PortfolioService', () => {
       } as Activity;
       const getActivities = jest
         .spyOn(activitiesService, 'getActivitiesForPortfolioCalculator')
-        .mockResolvedValueOnce({ activities: [includedActivity], count: 1 })
+        .mockResolvedValueOnce({
+          activities: [includedActivity],
+          count: 1,
+          exchangeRateErrors: []
+        })
         .mockResolvedValue({
+          exchangeRateErrors: [],
           activities: [includedActivity, excludedActivity],
           count: 2
         });
@@ -785,8 +860,13 @@ describe('PortfolioService', () => {
 
         const getActivities = jest
           .spyOn(activitiesService, 'getActivitiesForPortfolioCalculator')
-          .mockResolvedValueOnce({ activities: [], count: 0 })
           .mockResolvedValueOnce({
+            activities: [],
+            count: 0,
+            exchangeRateErrors: []
+          })
+          .mockResolvedValueOnce({
+            exchangeRateErrors: [],
             activities: [excludedActivity],
             count: 1
           });
@@ -826,7 +906,11 @@ describe('PortfolioService', () => {
     it('does not load excluded activities by default', async () => {
       const getActivities = jest
         .spyOn(activitiesService, 'getActivitiesForPortfolioCalculator')
-        .mockResolvedValue({ activities: [], count: 0 });
+        .mockResolvedValue({
+          activities: [],
+          count: 0,
+          exchangeRateErrors: []
+        });
 
       const holding = await portfolioService.getHolding({
         dataSource,
@@ -854,7 +938,11 @@ describe('PortfolioService', () => {
 
         jest
           .spyOn(activitiesService, 'getActivitiesForPortfolioCalculator')
-          .mockResolvedValue({ activities: [{} as Activity], count: 1 });
+          .mockResolvedValue({
+            activities: [{} as Activity],
+            count: 1,
+            exchangeRateErrors: []
+          });
 
         jest
           .spyOn(portfolioCalculatorFactory, 'createCalculator')
@@ -900,7 +988,11 @@ describe('PortfolioService', () => {
 
       jest
         .spyOn(activitiesService, 'getActivitiesForPortfolioCalculator')
-        .mockResolvedValue({ activities: [{} as Activity], count: 1 });
+        .mockResolvedValue({
+          activities: [{} as Activity],
+          count: 1,
+          exchangeRateErrors: []
+        });
 
       jest
         .spyOn(portfolioCalculatorFactory, 'createCalculator')
@@ -952,6 +1044,90 @@ describe('PortfolioService', () => {
       ]);
       expect(dateOfFirstActivity).toEqual(parseDate('2023-03-01'));
       expect(performance.netPerformance).toBe(600);
+    });
+
+    describe('with exchange rate errors', () => {
+      const exchangeRateErrors = [
+        { dataSource: DataSource.YAHOO, symbol: 'AAPL' }
+      ];
+
+      it('should return the exchange rate errors separately from the errors and set hasErrors', async () => {
+        const errors = [{ dataSource: DataSource.YAHOO, symbol: 'MSFT' }];
+
+        jest
+          .spyOn(activitiesService, 'getActivitiesForPortfolioCalculator')
+          .mockResolvedValue({
+            exchangeRateErrors,
+            activities: [{} as Activity],
+            count: 1
+          });
+
+        jest
+          .spyOn(portfolioCalculatorFactory, 'createCalculator')
+          .mockReturnValue({
+            getPerformance: getPerformanceOfCalculator,
+            getSnapshot: jest.fn().mockResolvedValue({
+              errors,
+              hasErrors: false,
+              historicalData: [{ date: '2023-03-01' }]
+            })
+          } as unknown as PortfolioCalculator);
+
+        getPerformanceOfCalculator.mockResolvedValueOnce({ chart: [] });
+
+        const result = await portfolioService.getPerformance({
+          dateRange: 'max',
+          userId: userDummyData.id
+        });
+
+        expect(result.exchangeRateErrors).toEqual(exchangeRateErrors);
+        expect(result.hasErrors).toBe(true);
+        expect(result.errors).toEqual(errors);
+      });
+
+      it('should return the exchange rate errors if all activities were skipped', async () => {
+        jest
+          .spyOn(activitiesService, 'getActivitiesForPortfolioCalculator')
+          .mockResolvedValue({ activities: [], count: 0, exchangeRateErrors });
+
+        const result = await portfolioService.getPerformance({
+          dateRange: 'max',
+          userId: userDummyData.id
+        });
+
+        expect(result.exchangeRateErrors).toEqual(exchangeRateErrors);
+        expect(result.hasErrors).toBe(true);
+        expect(result.chart).toEqual([]);
+      });
+
+      it.each([
+        { description: 'empty', exchangeRateErrors: [] },
+        {
+          description: 'omitted',
+          exchangeRateErrors: undefined as unknown as []
+        }
+      ])(
+        'should return no exchange rate errors and keep hasErrors of the snapshot if the loader returns them $description',
+        async ({ exchangeRateErrors: loaderExchangeRateErrors }) => {
+          jest
+            .spyOn(activitiesService, 'getActivitiesForPortfolioCalculator')
+            .mockResolvedValue({
+              activities: [{} as Activity],
+              count: 1,
+              exchangeRateErrors: loaderExchangeRateErrors
+            });
+
+          getPerformanceOfCalculator.mockResolvedValueOnce({ chart: [] });
+
+          const result = await portfolioService.getPerformance({
+            dateRange: 'max',
+            userId: userDummyData.id
+          });
+
+          expect(result.exchangeRateErrors).toEqual([]);
+          expect(result.hasErrors).toBe(false);
+        }
+      );
     });
 
     it('should return one chart item per calendar year since the first activity when grouped by year', async () => {
@@ -1252,7 +1428,11 @@ describe('PortfolioService', () => {
     beforeEach(() => {
       jest
         .spyOn(activitiesService, 'getActivitiesForPortfolioCalculator')
-        .mockResolvedValue({ activities: [], count: 0 });
+        .mockResolvedValue({
+          activities: [],
+          count: 0,
+          exchangeRateErrors: []
+        });
 
       jest
         .spyOn(exchangeRateDataService, 'toCurrency')
@@ -1313,6 +1493,7 @@ describe('PortfolioService', () => {
       jest
         .spyOn(activitiesService, 'getActivitiesForPortfolioCalculator')
         .mockResolvedValue({
+          exchangeRateErrors: [],
           activities: [
             createExcludedActivity({
               quantity: 10,
@@ -1390,6 +1571,7 @@ describe('PortfolioService', () => {
       jest
         .spyOn(activitiesService, 'getActivitiesForPortfolioCalculator')
         .mockResolvedValue({
+          exchangeRateErrors: [],
           activities: [
             createExcludedActivity({
               currency: 'USD',
@@ -1453,6 +1635,7 @@ describe('PortfolioService', () => {
       jest
         .spyOn(activitiesService, 'getActivitiesForPortfolioCalculator')
         .mockResolvedValue({
+          exchangeRateErrors: [],
           activities: [
             createExcludedActivity({
               quantity: 10,

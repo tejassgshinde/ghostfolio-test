@@ -495,7 +495,7 @@ export class PortfolioService {
       return type !== 'SEARCH_QUERY';
     });
 
-    let { holdings } = await this.getDetails({
+    let { exchangeRateErrors, holdings } = await this.getDetails({
       dateRange,
       userId,
       filters: filtersWithoutSearchQueryFilter,
@@ -513,7 +513,7 @@ export class PortfolioService {
       });
     }
 
-    return holdings;
+    return { exchangeRateErrors, holdings };
   }
 
   public async getInvestments({
@@ -634,7 +634,7 @@ export class PortfolioService {
       return type !== 'HOLDING_TYPE';
     });
 
-    const { activities } =
+    const { activities, exchangeRateErrors = [] } =
       await this.activitiesService.getActivitiesForPortfolioCalculator({
         userCurrency,
         userId,
@@ -897,12 +897,13 @@ export class PortfolioService {
     return {
       accounts,
       createdAt,
-      hasErrors,
+      exchangeRateErrors,
       holdings,
       markets,
       marketsAdvanced,
       platforms,
-      summary
+      summary,
+      hasErrors: hasErrors || exchangeRateErrors.length > 0
     };
   }
 
@@ -1211,7 +1212,10 @@ export class PortfolioService {
     const user = await this.userService.user({ id: userId });
     const userCurrency = this.getUserCurrency(user);
 
-    const [accountBalanceItems, { activities }] = await Promise.all([
+    const [
+      accountBalanceItems,
+      { activities, exchangeRateErrors = [] }
+    ] = await Promise.all([
       this.accountBalanceService.getAccountBalanceItems({
         filters,
         userId,
@@ -1228,7 +1232,8 @@ export class PortfolioService {
       return {
         chart: [],
         dateOfFirstActivity: undefined,
-        hasErrors: false,
+        exchangeRateErrors,
+        hasErrors: exchangeRateErrors.length > 0,
         performance: {
           currentNetWorth: 0,
           currentValueInBaseCurrency: 0,
@@ -1301,7 +1306,8 @@ export class PortfolioService {
     return {
       chart,
       errors,
-      hasErrors,
+      exchangeRateErrors,
+      hasErrors: hasErrors || exchangeRateErrors.length > 0,
       dateOfFirstActivity: parseDate(historicalData[0]?.date),
       performance: {
         dividendInBaseCurrency,

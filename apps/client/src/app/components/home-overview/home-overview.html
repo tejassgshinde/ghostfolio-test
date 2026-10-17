@@ -64,6 +64,10 @@
       </div>
     </div>
   } @else {
+    <gf-missing-exchange-rates-warning
+      class="w-100"
+      [exchangeRateErrors]="exchangeRateErrors()"
+    />
     <div class="align-items-stretch flex-nowrap row w-100">
       <div class="col-12 col-xl p-0">
         <div class="chart-container mx-auto position-relative">
