@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Excluded cash and cryptocurrencies from the _By Market_ chart and cryptocurrencies from the _By Continent_ chart on the allocations page
 - Fixed the data source mapping in the data provider service to apply only to the mapped data source
 
 ## 3.87.0 - 2026-10-17

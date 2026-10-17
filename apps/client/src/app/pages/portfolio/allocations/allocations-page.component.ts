@@ -9,6 +9,7 @@ import { MAX_TOP_HOLDINGS, UNKNOWN_KEY } from '@ghostfolio/common/config';
 import {
   canOpenHoldingDetail,
   convertValuesToPercentagesOfTotal,
+  getAllocationsByContinent,
   getAssetProfileIdentifier,
   getCountryName,
   getHoldingName,
@@ -91,6 +92,8 @@ export class GfAllocationsPageComponent implements OnInit {
   protected readonly deviceType = computed(
     () => this.deviceDetectorService.deviceInfo().deviceType
   );
+  protected hasContinentsData = false;
+  protected hasMarketsAdvancedData = false;
   protected holdings: {
     [assetProfileIdentifier: string]: Pick<
       PortfolioPosition['assetProfile'],
@@ -302,6 +305,8 @@ export class GfAllocationsPageComponent implements OnInit {
         value: 0
       }
     };
+    this.hasContinentsData = false;
+    this.hasMarketsAdvancedData = false;
     this.holdings = {};
     this.marketsAdvanced = {
       [UNKNOWN_KEY]: {
@@ -423,19 +428,8 @@ export class GfAllocationsPageComponent implements OnInit {
 
         if (position.assetProfile.countries.length > 0) {
           for (const country of position.assetProfile.countries) {
-            const { code, continent, weight } = country;
+            const { code, weight } = country;
             const value = this.extractValue(position);
-
-            const continentData = this.continents[continent];
-
-            if (continentData) {
-              continentData.value += weight * value;
-            } else {
-              this.continents[continent] = {
-                name: translate(continent),
-                value: weight * value
-              };
-            }
 
             const countryData = this.countries[code];
 
@@ -450,12 +444,6 @@ export class GfAllocationsPageComponent implements OnInit {
           }
         } else {
           const value = this.extractValue(position);
-
-          const continentData = this.continents[UNKNOWN_KEY];
-
-          if (continentData) {
-            continentData.value += value;
-          }
 
           const countryData = this.countries[UNKNOWN_KEY];
 
@@ -539,16 +527,51 @@ export class GfAllocationsPageComponent implements OnInit {
       }
     }
 
+    // Cash and cryptocurrencies are not geographically assigned
+    const { continents, totalValue: continentsTotalValue } =
+      getAllocationsByContinent(
+        this.portfolioDetails.holdings.map((position) => {
+          return {
+            assetProfile: position.assetProfile,
+            value: this.extractValue(position)
+          };
+        })
+      );
+
+    for (const [continent, value] of Object.entries(continents)) {
+      const continentData = this.continents[continent];
+
+      if (continentData) {
+        continentData.value += value;
+      } else {
+        this.continents[continent] = {
+          value,
+          name: translate(continent)
+        };
+      }
+    }
+
     if (this.showValuesInPercentage()) {
       // The values are percentages of the whole portfolio, but the analysis
       // data does not contain the cash positions
-      for (const values of [this.continents, this.countries, this.sectors]) {
+      for (const values of [this.countries, this.sectors]) {
         convertValuesToPercentagesOfTotal({
           values,
           total: totalValueExcludingCashPositions
         });
       }
+
+      // The continents additionally exclude cryptocurrencies, so they have
+      // their own total
+      convertValuesToPercentagesOfTotal({
+        total: continentsTotalValue,
+        values: this.continents
+      });
     }
+
+    this.hasContinentsData = Object.values(this.continents).some(
+      ({ value }) => value > 0
+    );
 
     this.markets = this.portfolioDetails.markets;
 
@@ -561,6 +584,10 @@ export class GfAllocationsPageComponent implements OnInit {
         }
       );
     }
+
+    this.hasMarketsAdvancedData = Object.values(this.marketsAdvanced).some(
+      ({ value }) => value > 0
+    );
 
     for (const [
       id,

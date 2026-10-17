@@ -1,11 +1,13 @@
 import {
   TAG_ID_EMERGENCY_FUND,
-  TAG_ID_EXCLUDE_FROM_ANALYSIS
+  TAG_ID_EXCLUDE_FROM_ANALYSIS,
+  UNKNOWN_KEY
 } from '@ghostfolio/common/config';
 import {
   canApplyFiltersToAccess,
   canUseCustomAssetProfileSymbol,
   extractNumberFromString,
+  getAllocationsByContinent,
   getCountryCodeFromCurrency,
   getEmojiFlag,
   getHoldingName,
@@ -14,6 +16,7 @@ import {
   getStringOrUndefined,
   isAccountBalanceInFuture,
   isAccountExcluded,
+  isCryptocurrencyPosition,
   isCurrency,
   isCurrencySymbol,
   isDarkColorScheme,
@@ -145,6 +148,108 @@ describe('Helper', () => {
 
     it('Not a number', () => {
       expect(extractNumberFromString({ value: 'X' })).toEqual(NaN);
+    });
+  });
+
+  describe('Get allocations by continent', () => {
+    it('Excludes cash and cryptocurrency and keeps other positions', () => {
+      expect(
+        getAllocationsByContinent([
+          {
+            assetProfile: { assetSubClass: 'CASH', countries: [] },
+            value: 2000
+          },
+          {
+            assetProfile: { assetSubClass: 'CRYPTOCURRENCY', countries: [] },
+            value: 3000
+          },
+          {
+            assetProfile: {
+              assetSubClass: 'STOCK',
+              countries: [{ continent: 'North America', weight: 1 }]
+            },
+            value: 1000
+          },
+          {
+            assetProfile: { assetSubClass: undefined, countries: [] },
+            value: 500
+          }
+        ])
+      ).toEqual({
+        continents: { [UNKNOWN_KEY]: 500, 'North America': 1000 },
+        totalValue: 1500
+      });
+    });
+
+    it('Excludes cryptocurrency with countries', () => {
+      expect(
+        getAllocationsByContinent([
+          {
+            assetProfile: {
+              assetSubClass: 'CRYPTOCURRENCY',
+              countries: [{ continent: 'Europe', weight: 1 }]
+            },
+            value: 3000
+          },
+          {
+            assetProfile: {
+              assetSubClass: 'STOCK',
+              countries: [{ continent: 'Asia', weight: 1 }]
+            },
+            value: 1000
+          }
+        ])
+      ).toEqual({
+        continents: { [UNKNOWN_KEY]: 0, Asia: 1000 },
+        totalValue: 1000
+      });
+    });
+
+    it('Cash and cryptocurrency only', () => {
+      expect(
+        getAllocationsByContinent([
+          {
+            assetProfile: { assetSubClass: 'CASH', countries: [] },
+            value: 2000
+          },
+          {
+            assetProfile: { assetSubClass: 'CRYPTOCURRENCY', countries: [] },
+            value: 3000
+          }
+        ])
+      ).toEqual({ continents: { [UNKNOWN_KEY]: 0 }, totalValue: 0 });
+    });
+
+    it('Splits multiple countries by weight', () => {
+      expect(
+        getAllocationsByContinent([
+          {
+            assetProfile: {
+              assetSubClass: 'ETF',
+              countries: [
+                { continent: 'North America', weight: 0.6 },
+                { continent: 'Europe', weight: 0.25 },
+                { continent: 'Europe', weight: 0.15 }
+              ]
+            },
+            value: 1000
+          },
+          {
+            assetProfile: {
+              assetSubClass: 'STOCK',
+              countries: [{ continent: 'Europe', weight: 1 }]
+            },
+            value: 200
+          }
+        ])
+      ).toEqual({
+        continents: {
+          [UNKNOWN_KEY]: 0,
+          'North America': 600,
+          Europe: 600
+        },
+        totalValue: 1200
+      });
     });
   });
 
@@ -420,6 +525,34 @@ describe('Helper', () => {
 
     it('Undefined account', () => {
       expect(isAccountExcluded(undefined)).toEqual(false);
+    });
+  });
+
+  describe('Is cryptocurrency position', () => {
+    it('A cryptocurrency position', () => {
+      expect(
+        isCryptocurrencyPosition({ assetSubClass: 'CRYPTOCURRENCY' })
+      ).toEqual(true);
+    });
+
+    it('A cash position', () => {
+      expect(isCryptocurrencyPosition({ assetSubClass: 'CASH' })).toEqual(
+        false
+      );
+    });
+
+    it('A stock position', () => {
+      expect(isCryptocurrencyPosition({ assetSubClass: 'STOCK' })).toEqual(
+        false
+      );
+    });
+
+    it('Without argument', () => {
+      expect(isCryptocurrencyPosition(undefined)).toEqual(false);
+    });
+
+    it('Without asset sub class', () => {
+      expect(isCryptocurrencyPosition({})).toEqual(false);
     });
   });
 

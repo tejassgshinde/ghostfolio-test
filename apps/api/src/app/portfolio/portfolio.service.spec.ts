@@ -332,21 +332,134 @@ describe('PortfolioService', () => {
   });
 
   describe('getAggregatedMarkets', () => {
-    const getAggregatedMarkets = (holdings: object[]) => {
+    const getAggregatedMarkets = (
+      holdings: object[],
+      options?: { excludeCashAndCryptoFromMarketsAdvanced?: boolean }
+    ) => {
       return (
         portfolioService as unknown as {
-          getAggregatedMarkets: (aHoldings: object[]) => {
+          getAggregatedMarkets: (
+            aHoldings: object[],
+            aOptions?: { excludeCashAndCryptoFromMarketsAdvanced?: boolean }
+          ) => {
             markets: Record<
               string,
               { valueInBaseCurrency: number; valueInPercentage: number }
             >;
-            marketsAdvanced: Record<string, { valueInBaseCurrency: number }>;
+            marketsAdvanced: Record<
+              string,
+              { valueInBaseCurrency: number; valueInPercentage: number }
+            >;
           };
         }
-      ).getAggregatedMarkets(holdings);
+      ).getAggregatedMarkets(holdings, options);
     };
 
-    it('should distribute holdings with countries to their market and route holdings without countries (e.g. commodities, cryptocurrencies) to the unknown bucket', () => {
+    const emptyMarkets = {
+      developedMarkets: 0,
+      emergingMarkets: 0,
+      otherMarkets: 0
+    };
+
+    const emptyMarketsAdvanced = {
+      asiaPacific: 0,
+      emergingMarkets: 0,
+      europe: 0,
+      japan: 0,
+      northAmerica: 0,
+      otherMarkets: 0
+    };
+
+    const cashHolding = {
+      assetProfile: { assetSubClass: 'CASH', countries: [] },
+      markets: emptyMarkets,
+      marketsAdvanced: emptyMarketsAdvanced,
+      valueInBaseCurrency: 200
+    };
+
+    const cryptoHolding = {
+      assetProfile: { assetSubClass: 'CRYPTOCURRENCY', countries: [] },
+      markets: emptyMarkets,
+      marketsAdvanced: emptyMarketsAdvanced,
+      valueInBaseCurrency: 300
+    };
+
+    const goldHolding = {
+      assetProfile: { countries: [] },
+      markets: emptyMarkets,
+      marketsAdvanced: emptyMarketsAdvanced,
+      valueInBaseCurrency: 500
+    };
+
+    const msftHolding = {
+      assetProfile: { countries: [{ code: 'US', weight: 1 }] },
+      markets: { ...emptyMarkets, developedMarkets: 1 },
+      marketsAdvanced: { ...emptyMarketsAdvanced, northAmerica: 1 },
+      valueInBaseCurrency: 1000
+    };
+
+    it('should exclude cash and cryptocurrencies from the advanced markets if requested and keep holdings without countries as unknown', () => {
+      const { markets, marketsAdvanced } = getAggregatedMarkets(
+        [cashHolding, cryptoHolding, msftHolding, goldHolding],
+        { excludeCashAndCryptoFromMarketsAdvanced: true }
+      );
+
+      expect(marketsAdvanced.northAmerica.valueInBaseCurrency).toBe(1000);
+      expect(marketsAdvanced[UNKNOWN_KEY].valueInBaseCurrency).toBe(500);
+
+      expect(marketsAdvanced.northAmerica.valueInPercentage).toBeCloseTo(
+        1000 / 1500
+      );
+      expect(marketsAdvanced[UNKNOWN_KEY].valueInPercentage).toBeCloseTo(
+        500 / 1500
+      );
+
+      const marketsAdvancedPercentageSum = Object.values(marketsAdvanced)
+        .map(({ valueInPercentage }) => {
+          return valueInPercentage;
+        })
+        .reduce((sum, valueInPercentage) => {
+          return sum + valueInPercentage;
+        }, 0);
+
+      expect(marketsAdvancedPercentageSum).toBeCloseTo(1);
+
+      // The simple markets are not affected
+      expect(markets.developedMarkets.valueInBaseCurrency).toBe(1000);
+      expect(markets[UNKNOWN_KEY].valueInBaseCurrency).toBe(1000);
+    });
+
+    it('should include cash and cryptocurrencies in the unknown advanced markets by default', () => {
+      const { markets, marketsAdvanced } = getAggregatedMarkets([
+        cashHolding,
+        cryptoHolding,
+        msftHolding,
+        goldHolding
+      ]);
+
+      expect(marketsAdvanced.northAmerica.valueInBaseCurrency).toBe(1000);
+      expect(marketsAdvanced[UNKNOWN_KEY].valueInBaseCurrency).toBe(1000);
+      expect(marketsAdvanced[UNKNOWN_KEY].valueInPercentage).toBeCloseTo(
+        1000 / 2000
+      );
+
+      expect(markets[UNKNOWN_KEY].valueInBaseCurrency).toBe(1000);
+    });
+
+    it('should return zero advanced markets if only cash and cryptocurrencies are present and excluded', () => {
+      const { marketsAdvanced } = getAggregatedMarkets(
+        [cashHolding, cryptoHolding],
+        { excludeCashAndCryptoFromMarketsAdvanced: true }
+      );
+
+      for (const market of Object.values(marketsAdvanced)) {
+        expect(market.valueInBaseCurrency).toBe(0);
+        expect(market.valueInPercentage).toBe(0);
+        expect(Number.isNaN(market.valueInPercentage)).toBe(false);
+      }
+    });
+
+    it('should distribute holdings with countries to their market and route holdings without countries (e.g. commodities) to the unknown bucket', () => {
       const holdings = [
         {
           // Gold (GC=F)
