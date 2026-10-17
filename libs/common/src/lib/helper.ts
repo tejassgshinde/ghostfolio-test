@@ -54,8 +54,10 @@ import {
   SEARCH_QUERY_MINIMUM_LENGTH,
   TAG_ID_DRAFT,
   TAG_ID_EXCLUDE_FROM_ANALYSIS,
-  TAG_IDS_SYSTEM
+  TAG_IDS_SYSTEM,
+  UNKNOWN_KEY
 } from './config';
+import { Country } from './interfaces/country.interface';
 import {
   AssetProfileIdentifier,
   AssetProfileItem,
@@ -362,6 +364,46 @@ export function getAllActivityTypes(): ActivityType[] {
   return Object.values(ActivityType);
 }
 
+/**
+ * Aggregates the values of the positions by continent. Cash and
+ * cryptocurrency positions are excluded since they are not geographically
+ * assigned. Other positions without countries are aggregated under
+ * `UNKNOWN_KEY`. The `totalValue` only covers the remaining positions.
+ */
+export function getAllocationsByContinent(
+  positions: {
+    assetProfile: {
+      assetSubClass?: AssetSubClass;
+      countries?: Pick<Country, 'continent' | 'weight'>[];
+    };
+    value: number;
+  }[]
+) {
+  const continents: { [continent: string]: number } = { [UNKNOWN_KEY]: 0 };
+  let totalValue = 0;
+
+  for (const { assetProfile, value } of positions) {
+    if (
+      isCashPosition(assetProfile) ||
+      isCryptocurrencyPosition(assetProfile)
+    ) {
+      continue;
+    }
+
+    totalValue += value;
+
+    if (assetProfile.countries?.length > 0) {
+      for (const { continent, weight } of assetProfile.countries) {
+        continents[continent] = (continents[continent] ?? 0) + weight * value;
+      }
+    } else {
+      continents[UNKNOWN_KEY] += value;
+    }
+  }
+
+  return { continents, totalValue };
+}
+
 export function getAssetProfileIdentifier({
   dataSource,
   symbol
@@ -634,6 +676,14 @@ export function isCashPosition({
   assetSubClass?: AssetSubClass;
 } = {}) {
   return assetSubClass === AssetSubClass.CASH;
+}
+
+export function isCryptocurrencyPosition({
+  assetSubClass
+}: {
+  assetSubClass?: AssetSubClass;
+} = {}) {
+  return assetSubClass === AssetSubClass.CRYPTOCURRENCY;
 }
 
 export function isCurrency(aCurrency: string) {

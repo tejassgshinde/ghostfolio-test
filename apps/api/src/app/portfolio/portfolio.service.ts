@@ -45,6 +45,8 @@ import {
   getAssetProfileIdentifier,
   getSum,
   isAccountExcluded,
+  isCashPosition,
+  isCryptocurrencyPosition,
   isDraftActivity,
   parseDate,
   resetHours,
@@ -605,6 +607,7 @@ export class PortfolioService {
 
   public async getDetails({
     dateRange = DEFAULT_DATE_RANGE,
+    excludeCashAndCryptoFromMarketsAdvanced = false,
     filters,
     includeAllHoldings = false,
     user: userFromCaller,
@@ -614,6 +617,7 @@ export class PortfolioService {
     withSummary = false
   }: {
     dateRange?: DateRange;
+    excludeCashAndCryptoFromMarketsAdvanced?: boolean;
     filters?: Filter[];
     includeAllHoldings?: boolean;
     user?: UserWithSettings;
@@ -875,7 +879,9 @@ export class PortfolioService {
     let marketsAdvanced: PortfolioDetails['marketsAdvanced'];
 
     if (withMarkets) {
-      ({ markets, marketsAdvanced } = this.getAggregatedMarkets(holdings));
+      ({ markets, marketsAdvanced } = this.getAggregatedMarkets(holdings, {
+        excludeCashAndCryptoFromMarketsAdvanced
+      }));
     }
 
     let summary: PortfolioSummary | undefined;
@@ -1645,7 +1651,12 @@ export class PortfolioService {
     });
   }
 
-  private getAggregatedMarkets(holdings: PortfolioPosition[]): {
+  private getAggregatedMarkets(
+    holdings: PortfolioPosition[],
+    {
+      excludeCashAndCryptoFromMarketsAdvanced = false
+    }: { excludeCashAndCryptoFromMarketsAdvanced?: boolean } = {}
+  ): {
     markets: PortfolioDetails['markets'];
     marketsAdvanced: PortfolioDetails['marketsAdvanced'];
   } {
@@ -1713,6 +1724,11 @@ export class PortfolioService {
     for (const position of holdings) {
       const value = position.valueInBaseCurrency;
 
+      const isExcludedFromMarketsAdvanced =
+        excludeCashAndCryptoFromMarketsAdvanced &&
+        (isCashPosition(position.assetProfile) ||
+          isCryptocurrencyPosition(position.assetProfile));
+
       if (position.assetProfile.countries.length > 0) {
         markets.developedMarkets.valueInBaseCurrency +=
           position.markets.developedMarkets * value;
@@ -1721,21 +1737,26 @@ export class PortfolioService {
         markets.otherMarkets.valueInBaseCurrency +=
           position.markets.otherMarkets * value;
 
-        marketsAdvanced.asiaPacific.valueInBaseCurrency +=
-          position.marketsAdvanced.asiaPacific * value;
-        marketsAdvanced.emergingMarkets.valueInBaseCurrency +=
-          position.marketsAdvanced.emergingMarkets * value;
-        marketsAdvanced.europe.valueInBaseCurrency +=
-          position.marketsAdvanced.europe * value;
-        marketsAdvanced.japan.valueInBaseCurrency +=
-          position.marketsAdvanced.japan * value;
-        marketsAdvanced.northAmerica.valueInBaseCurrency +=
-          position.marketsAdvanced.northAmerica * value;
-        marketsAdvanced.otherMarkets.valueInBaseCurrency +=
-          position.marketsAdvanced.otherMarkets * value;
+        if (!isExcludedFromMarketsAdvanced) {
+          marketsAdvanced.asiaPacific.valueInBaseCurrency +=
+            position.marketsAdvanced.asiaPacific * value;
+          marketsAdvanced.emergingMarkets.valueInBaseCurrency +=
+            position.marketsAdvanced.emergingMarkets * value;
+          marketsAdvanced.europe.valueInBaseCurrency +=
+            position.marketsAdvanced.europe * value;
+          marketsAdvanced.japan.valueInBaseCurrency +=
+            position.marketsAdvanced.japan * value;
+          marketsAdvanced.northAmerica.valueInBaseCurrency +=
+            position.marketsAdvanced.northAmerica * value;
+          marketsAdvanced.otherMarkets.valueInBaseCurrency +=
+            position.marketsAdvanced.otherMarkets * value;
+        }
       } else {
         markets[UNKNOWN_KEY].valueInBaseCurrency += value;
-        marketsAdvanced[UNKNOWN_KEY].valueInBaseCurrency += value;
+
+        if (!isExcludedFromMarketsAdvanced) {
+          marketsAdvanced[UNKNOWN_KEY].valueInBaseCurrency += value;
+        }
       }
     }
 
@@ -1763,21 +1784,15 @@ export class PortfolioService {
       marketsAdvanced.otherMarkets.valueInBaseCurrency +
       marketsAdvanced[UNKNOWN_KEY].valueInBaseCurrency;
 
-    marketsAdvanced.asiaPacific.valueInPercentage =
-      marketsAdvanced.asiaPacific.valueInBaseCurrency / marketsAdvancedTotal;
-    marketsAdvanced.emergingMarkets.valueInPercentage =
-      marketsAdvanced.emergingMarkets.valueInBaseCurrency /
-      marketsAdvancedTotal;
-    marketsAdvanced.europe.valueInPercentage =
-      marketsAdvanced.europe.valueInBaseCurrency / marketsAdvancedTotal;
-    marketsAdvanced.japan.valueInPercentage =
-      marketsAdvanced.japan.valueInBaseCurrency / marketsAdvancedTotal;
-    marketsAdvanced.northAmerica.valueInPercentage =
-      marketsAdvanced.northAmerica.valueInBaseCurrency / marketsAdvancedTotal;
-    marketsAdvanced.otherMarkets.valueInPercentage =
-      marketsAdvanced.otherMarkets.valueInBaseCurrency / marketsAdvancedTotal;
-    marketsAdvanced[UNKNOWN_KEY].valueInPercentage =
-      marketsAdvanced[UNKNOWN_KEY].valueInBaseCurrency / marketsAdvancedTotal;
+    // Avoid NaN if only excluded holdings (cash, cryptocurrencies) are present
+    const hasNoMarketsAdvancedValue =
+      excludeCashAndCryptoFromMarketsAdvanced && marketsAdvancedTotal === 0;
+
+    for (const market of Object.values(marketsAdvanced)) {
+      market.valueInPercentage = hasNoMarketsAdvancedValue
+        ? 0
+        : market.valueInBaseCurrency / marketsAdvancedTotal;
+    }
 
     return { markets, marketsAdvanced };
   }

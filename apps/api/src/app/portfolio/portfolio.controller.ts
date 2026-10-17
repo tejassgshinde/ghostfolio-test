@@ -116,6 +116,7 @@ export class PortfolioController {
     } = await this.portfolioService.getDetails({
       filters,
       userId,
+      excludeCashAndCryptoFromMarketsAdvanced: true,
       withMarkets,
       dateRange: range,
       withSummary: true

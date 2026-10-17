@@ -158,7 +158,7 @@
             [baseCurrency]="user?.settings?.baseCurrency"
             [colorScheme]="user?.settings?.colorScheme"
             [data]="continents"
-            [isInPercentage]="showValuesInPercentage()"
+            [isInPercentage]="showValuesInPercentage() && hasContinentsData"
             [keys]="['name']"
             [locale]="user?.settings?.locale"
           />
@@ -180,7 +180,9 @@
             [baseCurrency]="user?.settings?.baseCurrency"
             [colorScheme]="user?.settings?.colorScheme"
             [data]="marketsAdvanced"
-            [isInPercentage]="showValuesInPercentage()"
+            [isInPercentage]="
+              showValuesInPercentage() && hasMarketsAdvancedData
+            "
             [locale]="user?.settings?.locale"
           />
         </mat-card-content>
