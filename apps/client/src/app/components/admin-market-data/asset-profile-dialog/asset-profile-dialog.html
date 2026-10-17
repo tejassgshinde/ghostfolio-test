@@ -389,21 +389,11 @@
               <div class="w-50">
                 <mat-checkbox
                   color="primary"
-                  [checked]="isBenchmark"
+                  [checked]="assetProfileForm.controls.isBenchmark.value"
                   [disabled]="
                     !canEditAssetProfile || isEditAssetProfileIdentifierMode
                   "
-                  (change)="
-                    isBenchmark
-                      ? onUnsetBenchmark({
-                          dataSource: data.dataSource,
-                          symbol: data.symbol
-                        })
-                      : onSetBenchmark({
-                          dataSource: data.dataSource,
-                          symbol: data.symbol
-                        })
-                  "
+                  (change)="onToggleIsBenchmark($event)"
                 >
                   <ng-container i18n>Include in</ng-container>
                   <ng-container>&nbsp;</ng-container>
