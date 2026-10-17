@@ -3,6 +3,7 @@ import {
   AccountDetailDialogParams,
   AccountDetailDialogResult
 } from '@ghostfolio/client/components/account-detail-dialog/interfaces/interfaces';
+import { GfMissingExchangeRatesWarningComponent } from '@ghostfolio/client/components/missing-exchange-rates-warning/missing-exchange-rates-warning.component';
 import { ImpersonationStorageService } from '@ghostfolio/client/services/impersonation-storage.service';
 import { UserService } from '@ghostfolio/client/services/user/user.service';
 import { MAX_TOP_HOLDINGS, UNKNOWN_KEY } from '@ghostfolio/common/config';
@@ -63,6 +64,7 @@ import { AllocationsPageParams } from './interfaces/interfaces';
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    GfMissingExchangeRatesWarningComponent,
     GfPortfolioProportionChartComponent,
     GfPremiumIndicatorComponent,
     GfTopHoldingsComponent,

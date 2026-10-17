@@ -615,7 +615,8 @@ export class ActivitiesService {
     types,
     userCurrency,
     userId,
-    withExcludedAccountsAndActivities = false
+    withExcludedAccountsAndActivities = false,
+    withoutActivitiesWithMissingExchangeRates = false
   }: {
     endDate?: Date;
     filters?: Filter[];
@@ -629,7 +630,15 @@ export class ActivitiesService {
     userCurrency: string;
     userId: string;
     withExcludedAccountsAndActivities?: boolean;
-  }): Promise<ActivitiesResponse> {
+    /**
+     * Whether to omit activities whose dated currency conversions cannot be
+     * resolved and to report their asset profiles in `exchangeRateErrors`.
+     * Otherwise, unresolved conversions fall back to `0`.
+     */
+    withoutActivitiesWithMissingExchangeRates?: boolean;
+  }): Promise<
+    ActivitiesResponse & { exchangeRateErrors?: AssetProfileIdentifier[] }
+  > {
     let orderBy: Prisma.Enumerable<Prisma.OrderOrderByWithRelationInput> = [
       { date: 'asc' }
     ];
@@ -708,7 +717,9 @@ export class ActivitiesService {
       assetProfileIdentifiers
     );
 
-    const activities = await Promise.all(
+    const exchangeRateErrors: AssetProfileIdentifier[] = [];
+
+    const activitiesOrUndefined = await Promise.all(
       orders.map(async (order) => {
         const assetProfile = assetProfiles.find(({ dataSource, symbol }) => {
           return (
@@ -719,12 +730,7 @@ export class ActivitiesService {
 
         const value = new Big(order.quantity).mul(order.unitPrice).toNumber();
 
-        const [
-          feeInAssetProfileCurrency = 0,
-          feeInBaseCurrency = 0,
-          unitPriceInAssetProfileCurrency = 0,
-          valueInBaseCurrency = 0
-        ] = await Promise.all([
+        const conversions = await Promise.all([
           this.exchangeRateDataService.toCurrencyAtDate(
             order.fee,
             order.currency ?? order.SymbolProfile.currency,
@@ -751,6 +757,27 @@ export class ActivitiesService {
           )
         ]);
 
+        if (
+          withoutActivitiesWithMissingExchangeRates &&
+          conversions.some((conversion) => {
+            return conversion === undefined;
+          })
+        ) {
+          exchangeRateErrors.push({
+            dataSource: order.SymbolProfile.dataSource,
+            symbol: order.SymbolProfile.symbol
+          });
+
+          return undefined;
+        }
+
+        const [
+          feeInAssetProfileCurrency = 0,
+          feeInBaseCurrency = 0,
+          unitPriceInAssetProfileCurrency = 0,
+          valueInBaseCurrency = 0
+        ] = conversions;
+
         return {
           ...omit(order, ['SymbolProfile']),
           assetProfile,
@@ -763,7 +790,22 @@ export class ActivitiesService {
       })
     );
 
-    return { activities, count };
+    if (!withoutActivitiesWithMissingExchangeRates) {
+      return { activities: activitiesOrUndefined, count };
+    }
+
+    const activities = activitiesOrUndefined.filter(Boolean);
+
+    return {
+      activities,
+      count: count - (activitiesOrUndefined.length - activities.length),
+      exchangeRateErrors: uniqBy(
+        exchangeRateErrors,
+        ({ dataSource, symbol }) => {
+          return getAssetProfileIdentifier({ dataSource, symbol });
+        }
+      )
+    };
   }
 
   /**
@@ -788,16 +830,20 @@ export class ActivitiesService {
     withCash?: boolean;
     /** Whether to include activities that are excluded from analysis. */
     withExcludedAccountsAndActivities?: boolean;
-  }) {
-    const [activities, splits] = await Promise.all([
-      this.getActivities({
-        filters,
-        userCurrency,
-        userId,
-        withExcludedAccountsAndActivities
-      }),
-      this.assetProfileSplitService.getSplitsByUserId({ userId })
-    ]);
+  }): Promise<
+    ActivitiesResponse & { exchangeRateErrors: AssetProfileIdentifier[] }
+  > {
+    const [{ exchangeRateErrors = [], ...activities }, splits] =
+      await Promise.all([
+        this.getActivities({
+          filters,
+          userCurrency,
+          userId,
+          withExcludedAccountsAndActivities,
+          withoutActivitiesWithMissingExchangeRates: true
+        }),
+        this.assetProfileSplitService.getSplitsByUserId({ userId })
+      ]);
 
     if (splits.length > 0) {
       const splitsBySymbolProfileId = groupBy(splits, 'symbolProfileId');
@@ -828,7 +874,7 @@ export class ActivitiesService {
       activities.count += cashActivities.count;
     }
 
-    return activities;
+    return { ...activities, exchangeRateErrors };
   }
 
   public async getStatisticsByCurrency(

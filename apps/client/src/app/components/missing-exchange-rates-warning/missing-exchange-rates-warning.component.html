@@ -1,0 +1,15 @@
+@if (hasExchangeRateErrors()) {
+  <div class="alert alert-warning align-items-start d-flex mb-3" role="alert">
+    <ion-icon class="flex-shrink-0 me-2 mt-1" name="warning-outline" />
+    <div>
+      <div i18n>
+        Some data is incomplete because exchange rates are missing. Affected
+        activities have been excluded from the calculation.
+      </div>
+      <div class="small">
+        <ng-container i18n>Affected assets</ng-container>:
+        {{ affectedAssets() }}
+      </div>
+    </div>
+  </div>
+}

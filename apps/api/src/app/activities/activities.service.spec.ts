@@ -58,6 +58,68 @@ describe('ActivitiesService', () => {
     );
   });
 
+  function createOrder({
+    fee = 1,
+    id,
+    symbol
+  }: {
+    fee?: number;
+    id: string;
+    symbol: string;
+  }) {
+    return {
+      ...activityDummyData,
+      account: null,
+      currency: 'USD',
+      date: parseDate('2021-01-01'),
+      fee,
+      id,
+      quantity: 10,
+      SymbolProfile: {
+        currency: 'USD',
+        dataSource: DataSource.YAHOO,
+        symbol
+      },
+      tags: [],
+      type: 'BUY',
+      unitPrice: 100
+    };
+  }
+
+  function createServiceWithOrders({
+    orders,
+    toCurrencyAtDate
+  }: {
+    orders: ReturnType<typeof createOrder>[];
+    toCurrencyAtDate: jest.Mock;
+  }) {
+    return new ActivitiesService(
+      null,
+      accountService as unknown as AccountService,
+      { getSplitsByUserId } as unknown as AssetProfileSplitService,
+      null,
+      null,
+      null,
+      null,
+      { toCurrencyAtDate } as unknown as ExchangeRateDataService,
+      null,
+      {
+        order: {
+          findMany: jest.fn().mockResolvedValue(orders),
+          count: jest.fn().mockResolvedValue(orders.length)
+        }
+      } as unknown as PrismaService,
+      {
+        getSymbolProfiles: jest.fn().mockResolvedValue(
+          orders.map(({ SymbolProfile }) => {
+            return { ...assetProfileDummyData, ...SymbolProfile };
+          })
+        )
+      } as unknown as SymbolProfileService,
+      null
+    );
+  }
+
   describe('createActivity', () => {
     it('creates a custom asset profile with a UUID if no asset profile exists for a symbol with the prefix', async () => {
       const assetProfile = await getCreatedAssetProfile({ symbol: 'GF_COPX' });
@@ -232,6 +294,27 @@ describe('ActivitiesService', () => {
       expect(activities[0].assetProfile).toBe(assetProfile);
     });
 
+    it('returns the activity with 0 defaults and without exchangeRateErrors if the flag is not set', async () => {
+      const service = createServiceWithOrders({
+        orders: [createOrder({ id: 'activity-1', symbol: 'AAPL' })],
+        toCurrencyAtDate: jest.fn().mockResolvedValue(undefined)
+      });
+
+      const result = await service.getActivities({
+        userCurrency: 'EUR',
+        userId: 'user-id'
+      });
+
+      expect(result).not.toHaveProperty('exchangeRateErrors');
+      expect(result.activities).toHaveLength(1);
+      expect(result.activities[0]).toMatchObject({
+        feeInAssetProfileCurrency: 0,
+        feeInBaseCurrency: 0,
+        unitPriceInAssetProfileCurrency: 0,
+        valueInBaseCurrency: 0
+      });
+    });
+
     it('excludes the activities of the start date of a date range', async () => {
       jest.useFakeTimers().setSystemTime(parseDate('2024-06-15').getTime());
 
@@ -288,6 +371,102 @@ describe('ActivitiesService', () => {
   });
 
   describe('getActivitiesForPortfolioCalculator', () => {
+    it('omits an activity with a single missing conversion and reports its asset profile once', async () => {
+      const toCurrencyAtDate = jest
+        .fn()
+        .mockResolvedValueOnce(1)
+        .mockResolvedValueOnce(undefined)
+        .mockResolvedValueOnce(100)
+        .mockResolvedValueOnce(1000)
+        .mockResolvedValue(1);
+      const service = createServiceWithOrders({
+        orders: [
+          createOrder({ id: 'activity-1', symbol: 'AAPL' }),
+          createOrder({ id: 'activity-2', symbol: 'MSFT' })
+        ],
+        toCurrencyAtDate
+      });
+
+      const result = await service.getActivitiesForPortfolioCalculator({
+        userCurrency: 'EUR',
+        userId: 'user-id'
+      });
+
+      expect(result.activities).toHaveLength(1);
+      expect(result.activities[0].id).toBe('activity-2');
+      expect(result.count).toBe(1);
+      expect(result.exchangeRateErrors).toEqual([
+        { dataSource: DataSource.YAHOO, symbol: 'AAPL' }
+      ]);
+    });
+
+    it('reports one entry for two skipped activities of the same asset', async () => {
+      const service = createServiceWithOrders({
+        orders: [
+          createOrder({ id: 'activity-1', symbol: 'AAPL' }),
+          createOrder({ id: 'activity-2', symbol: 'AAPL' })
+        ],
+        toCurrencyAtDate: jest.fn().mockResolvedValue(undefined)
+      });
+
+      const result = await service.getActivitiesForPortfolioCalculator({
+        userCurrency: 'EUR',
+        userId: 'user-id'
+      });
+
+      expect(result.activities).toEqual([]);
+      expect(result.exchangeRateErrors).toEqual([
+        { dataSource: DataSource.YAHOO, symbol: 'AAPL' }
+      ]);
+    });
+
+    it('skips nothing if every conversion resolves a number, including 0', async () => {
+      const service = createServiceWithOrders({
+        orders: [createOrder({ fee: 0, id: 'activity-1', symbol: 'AAPL' })],
+        toCurrencyAtDate: jest.fn().mockResolvedValue(0)
+      });
+
+      const result = await service.getActivitiesForPortfolioCalculator({
+        userCurrency: 'EUR',
+        userId: 'user-id'
+      });
+
+      expect(result.activities).toHaveLength(1);
+      expect(result.count).toBe(1);
+      expect(result.exchangeRateErrors).toEqual([]);
+    });
+
+    it('still appends synthetic cash activities when activities are skipped', async () => {
+      const cashActivity = createActivity({
+        assetSubClass: 'CASH',
+        currency: 'USD',
+        quantity: 100,
+        symbol: 'USD',
+        unitPrice: 1
+      });
+      const service = createServiceWithOrders({
+        orders: [createOrder({ id: 'activity-1', symbol: 'AAPL' })],
+        toCurrencyAtDate: jest.fn().mockResolvedValue(undefined)
+      });
+
+      accountService.getCashDetails.mockResolvedValue({ accounts: [] });
+      jest.spyOn(service, 'getCashActivities').mockResolvedValue({
+        activities: [cashActivity],
+        count: 1
+      });
+
+      const result = await service.getActivitiesForPortfolioCalculator({
+        userCurrency: 'EUR',
+        userId: 'user-id',
+        withCash: true
+      });
+
+      expect(result.activities).toEqual([cashActivity]);
+      expect(result.exchangeRateErrors).toEqual([
+        { dataSource: DataSource.YAHOO, symbol: 'AAPL' }
+      ]);
+    });
+
     it('leaves an activity unchanged when no splits exist', async () => {
       const activity = createActivity({ symbol: 'AAPL' });
 
@@ -452,7 +631,8 @@ describe('ActivitiesService', () => {
         filters,
         userCurrency: 'USD',
         userId: 'user-id',
-        withExcludedAccountsAndActivities: false
+        withExcludedAccountsAndActivities: false,
+        withoutActivitiesWithMissingExchangeRates: true
       });
       expect(getSplitsByUserId).toHaveBeenCalledWith({ userId: 'user-id' });
       expect(result.activities[0]).toMatchObject({
@@ -478,7 +658,8 @@ describe('ActivitiesService', () => {
         filters: undefined,
         userCurrency: 'USD',
         userId: 'user-id',
-        withExcludedAccountsAndActivities: true
+        withExcludedAccountsAndActivities: true,
+        withoutActivitiesWithMissingExchangeRates: true
       });
     });
 

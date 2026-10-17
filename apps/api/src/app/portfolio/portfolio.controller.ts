@@ -107,6 +107,7 @@ export class PortfolioController {
     const {
       accounts,
       createdAt,
+      exchangeRateErrors,
       hasErrors,
       holdings,
       markets,
@@ -214,6 +215,7 @@ export class PortfolioController {
     return {
       accounts,
       createdAt,
+      exchangeRateErrors,
       hasError,
       holdings,
       platforms,
@@ -401,13 +403,14 @@ export class PortfolioController {
       filterByTags: tags
     });
 
-    const holdings = await this.portfolioService.getHoldings({
-      filters,
-      userId,
-      dateRange: range
-    });
+    const { exchangeRateErrors, holdings } =
+      await this.portfolioService.getHoldings({
+        filters,
+        userId,
+        dateRange: range
+      });
 
-    return { holdings };
+    return { exchangeRateErrors, holdings };
   }
 
   @Get('investments')

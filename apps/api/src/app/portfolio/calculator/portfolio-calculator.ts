@@ -145,7 +145,35 @@ export abstract class PortfolioCalculator {
       dateOfFirstActivity = parseDate(this.accountBalanceItems[0].date);
     }
 
+    // Skip activities with values that cannot be parsed (e.g. undefined
+    // converted amounts caused by a missing exchange rate) before they
+    // affect the date of the first activity or throw in `new Big(...)`
+    const isParsableNumber = (value: unknown) => {
+      try {
+        new Big(value as Big.BigSource);
+
+        return true;
+      } catch {
+        return false;
+      }
+    };
+
     this.activities = activities
+      .filter(
+        ({
+          feeInAssetProfileCurrency,
+          feeInBaseCurrency,
+          quantity,
+          unitPriceInAssetProfileCurrency
+        }) => {
+          return [
+            feeInAssetProfileCurrency,
+            feeInBaseCurrency,
+            quantity,
+            unitPriceInAssetProfileCurrency
+          ].every(isParsableNumber);
+        }
+      )
       .map(
         ({
           assetProfile,

@@ -1,4 +1,5 @@
 import { GfBenchmarkComparatorComponent } from '@ghostfolio/client/components/benchmark-comparator/benchmark-comparator.component';
+import { GfMissingExchangeRatesWarningComponent } from '@ghostfolio/client/components/missing-exchange-rates-warning/missing-exchange-rates-warning.component';
 import { UserService } from '@ghostfolio/client/services/user/user.service';
 import {
   DEFAULT_DATE_RANGE,
@@ -7,6 +8,7 @@ import {
 import { SubscriptionType } from '@ghostfolio/common/enums';
 import { canOpenHoldingDetail } from '@ghostfolio/common/helper';
 import {
+  AssetProfileIdentifier,
   InvestmentItem,
   LineChartItem,
   PortfolioInvestmentsResponse,
@@ -63,6 +65,7 @@ import { forkJoin } from 'rxjs';
   imports: [
     GfBenchmarkComparatorComponent,
     GfInvestmentChartComponent,
+    GfMissingExchangeRatesWarningComponent,
     GfPremiumIndicatorComponent,
     GfToggleComponent,
     GfValueComponent,
@@ -101,6 +104,7 @@ export class GfAnalysisPageComponent implements OnInit {
     { label: $localize`Monthly`, value: 'month' },
     { label: $localize`Yearly`, value: 'year' }
   ];
+  protected exchangeRateErrors: AssetProfileIdentifier[] = [];
   protected performance: PortfolioPerformance;
   protected readonly PerformanceCalculationType = PerformanceCalculationType;
   protected performanceDataItems: LineChartItem[];
@@ -348,6 +352,7 @@ export class GfAnalysisPageComponent implements OnInit {
   }
 
   private update() {
+    this.exchangeRateErrors = [];
     this.isLoadingInvestmentChart = true;
 
     this.dataService
@@ -356,64 +361,67 @@ export class GfAnalysisPageComponent implements OnInit {
         range: this.user?.settings?.dateRange ?? DEFAULT_DATE_RANGE
       })
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe(({ chart, dateOfFirstActivity, performance }) => {
-        this.dateOfFirstActivity = dateOfFirstActivity ?? new Date();
+      .subscribe(
+        ({ chart, dateOfFirstActivity, exchangeRateErrors, performance }) => {
+          this.dateOfFirstActivity = dateOfFirstActivity ?? new Date();
+          this.exchangeRateErrors = exchangeRateErrors ?? [];
 
-        this.investments = [];
-        this.performance = performance;
-        this.performanceDataItems = [];
-        this.performanceDataItemsInPercentage = [];
+          this.investments = [];
+          this.performance = performance;
+          this.performanceDataItems = [];
+          this.performanceDataItemsInPercentage = [];
 
-        for (const {
-          date,
-          dividendInPercentageWithCurrencyEffect,
-          netPerformanceInPercentageWithCurrencyEffect,
-          totalInvestmentValueWithCurrencyEffect,
-          valueInPercentage,
-          valueWithCurrencyEffect
-        } of chart ?? []) {
-          if (totalInvestmentValueWithCurrencyEffect !== undefined) {
-            this.investments.push({
-              date,
-              investment: totalInvestmentValueWithCurrencyEffect
-            });
+          for (const {
+            date,
+            dividendInPercentageWithCurrencyEffect,
+            netPerformanceInPercentageWithCurrencyEffect,
+            totalInvestmentValueWithCurrencyEffect,
+            valueInPercentage,
+            valueWithCurrencyEffect
+          } of chart ?? []) {
+            if (totalInvestmentValueWithCurrencyEffect !== undefined) {
+              this.investments.push({
+                date,
+                investment: totalInvestmentValueWithCurrencyEffect
+              });
+            }
+
+            const value = isNumber(valueWithCurrencyEffect)
+              ? valueWithCurrencyEffect
+              : valueInPercentage;
+
+            if (isNumber(value)) {
+              this.performanceDataItems.push({
+                date,
+                value
+              });
+            }
+
+            if (isNumber(netPerformanceInPercentageWithCurrencyEffect)) {
+              this.performanceDataItemsInPercentage.push({
+                date,
+                value:
+                  netPerformanceInPercentageWithCurrencyEffect -
+                  (dividendInPercentageWithCurrencyEffect ?? 0)
+              });
+            }
           }
 
-          const value = isNumber(valueWithCurrencyEffect)
-            ? valueWithCurrencyEffect
-            : valueInPercentage;
-
-          if (isNumber(value)) {
-            this.performanceDataItems.push({
-              date,
-              value
-            });
+          if (
+            this.deviceType() === 'mobile' &&
+            this.performance.currentValueInBaseCurrency >=
+              NUMERICAL_PRECISION_THRESHOLD_6_FIGURES
+          ) {
+            this.precision = 0;
           }
 
-          if (isNumber(netPerformanceInPercentageWithCurrencyEffect)) {
-            this.performanceDataItemsInPercentage.push({
-              date,
-              value:
-                netPerformanceInPercentageWithCurrencyEffect -
-                (dividendInPercentageWithCurrencyEffect ?? 0)
-            });
-          }
+          this.isLoadingInvestmentChart = false;
+
+          this.updateBenchmarkDataItems();
+
+          this.changeDetectorRef.markForCheck();
         }
-
-        if (
-          this.deviceType() === 'mobile' &&
-          this.performance.currentValueInBaseCurrency >=
-            NUMERICAL_PRECISION_THRESHOLD_6_FIGURES
-        ) {
-          this.precision = 0;
-        }
-
-        this.isLoadingInvestmentChart = false;
-
-        this.updateBenchmarkDataItems();
-
-        this.changeDetectorRef.markForCheck();
-      });
+      );
 
     this.dataService
       .fetchPortfolioHoldings({

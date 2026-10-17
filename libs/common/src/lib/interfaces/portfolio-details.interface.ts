@@ -1,4 +1,5 @@
 import {
+  AssetProfileIdentifier,
   PortfolioPosition,
   PortfolioSummary
 } from '@ghostfolio/common/interfaces';
@@ -17,6 +18,8 @@ export interface PortfolioDetails {
     };
   };
   createdAt: Date;
+  /** Asset profiles of activities excluded due to missing exchange rates */
+  exchangeRateErrors?: AssetProfileIdentifier[];
   holdings: PortfolioPosition[];
   markets?: {
     [key in Market]: {
