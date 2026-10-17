@@ -179,6 +179,7 @@ export class GfAssetProfileDialogComponent implements OnInit {
       csvString: ''
     }),
     isActive: [true],
+    isBenchmark: [false],
     name: ['', Validators.required],
     scraperConfiguration: this.formBuilder.group<
       Omit<ScraperConfiguration, 'headers'> & {
@@ -478,6 +479,7 @@ export class GfAssetProfileDialogComponent implements OnInit {
           isActive: isBoolean(this.assetProfile?.isActive)
             ? this.assetProfile.isActive
             : null,
+          isBenchmark: this.isBenchmark,
           name: this.assetProfile.name ?? this.assetProfile.symbol ?? null,
           scraperConfiguration: {
             defaultMarketPrice:
@@ -615,19 +617,6 @@ export class GfAssetProfileDialogComponent implements OnInit {
     }
   }
 
-  protected onSetBenchmark({ dataSource, symbol }: AssetProfileIdentifier) {
-    this.dataService
-      .postBenchmark({ dataSource, symbol })
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe(() => {
-        this.dataService.updateInfo();
-
-        this.isBenchmark = true;
-
-        this.changeDetectorRef.markForCheck();
-      });
-  }
-
   protected onSetEditAssetProfileIdentifierMode() {
     this.isEditAssetProfileIdentifierMode = true;
 
@@ -760,7 +749,7 @@ export class GfAssetProfileDialogComponent implements OnInit {
             }
           );
 
-          this.initialize();
+          this.saveBenchmark();
         },
         error: (error: HttpErrorResponse) => {
           console.error($localize`Could not save asset profile`, error);
@@ -862,6 +851,16 @@ export class GfAssetProfileDialogComponent implements OnInit {
       });
   }
 
+  protected onToggleIsBenchmark({ checked }: MatCheckboxChange) {
+    this.assetProfileForm.controls.isBenchmark.setValue(checked);
+
+    if (checked === this.isBenchmark) {
+      this.assetProfileForm.controls.isBenchmark.markAsPristine();
+    } else {
+      this.assetProfileForm.controls.isBenchmark.markAsDirty();
+    }
+  }
+
   protected onToggleIsActive({ checked }: MatCheckboxChange) {
     if (checked) {
       this.assetProfileForm.controls.isActive.setValue(true);
@@ -874,19 +873,6 @@ export class GfAssetProfileDialogComponent implements OnInit {
     } else {
       this.assetProfileForm.controls.isActive.markAsDirty();
     }
-  }
-
-  protected onUnsetBenchmark({ dataSource, symbol }: AssetProfileIdentifier) {
-    this.dataService
-      .deleteBenchmark({ dataSource, symbol })
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe(() => {
-        this.dataService.updateInfo();
-
-        this.isBenchmark = false;
-
-        this.changeDetectorRef.markForCheck();
-      });
   }
 
   protected onTriggerSubmitAssetProfileForm() {
@@ -968,6 +954,42 @@ export class GfAssetProfileDialogComponent implements OnInit {
         ' ' +
         $localize`Do you really want to merge this asset profile into it?`
     });
+  }
+
+  private saveBenchmark() {
+    const isBenchmark = !!this.assetProfileForm.controls.isBenchmark.value;
+
+    if (isBenchmark === this.isBenchmark) {
+      this.initialize();
+
+      return;
+    }
+
+    const { dataSource, symbol } = this.data;
+
+    (isBenchmark
+      ? this.dataService.postBenchmark({ dataSource, symbol })
+      : this.dataService.deleteBenchmark({ dataSource, symbol })
+    )
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this.benchmarks = isBenchmark
+            ? [...this.benchmarks, { id: this.assetProfile.id }]
+            : this.benchmarks.filter(({ id }) => {
+                return id !== this.assetProfile.id;
+              });
+
+          this.dataService.updateInfo();
+
+          this.initialize();
+        },
+        error: (error: HttpErrorResponse) => {
+          console.error($localize`Could not save asset profile`, error);
+
+          this.initialize();
+        }
+      });
   }
 
   private patchAssetProfileIdentifier({
