@@ -26,6 +26,9 @@ import { PlatformService } from './platform.service';
 export class PlatformController {
   public constructor(private readonly platformService: PlatformService) {}
 
+  /**
+   * @deprecated Use `GET /api/v1/platforms` instead
+   */
   @Get()
   @HasPermission(permissions.readPlatformsWithAccountCount)
   @UseGuards(AuthGuard('jwt'), HasPermissionGuard)
@@ -33,6 +36,9 @@ export class PlatformController {
     return this.platformService.getPlatformsWithAccountCount();
   }
 
+  /**
+   * @deprecated Use `POST /api/v1/platforms` instead
+   */
   @HasPermission(permissions.createPlatform)
   @Post()
   @UseGuards(AuthGuard('jwt'), HasPermissionGuard)
@@ -42,6 +48,9 @@ export class PlatformController {
     return this.platformService.createPlatform(data);
   }
 
+  /**
+   * @deprecated Use `PUT /api/v1/platforms/:id` instead
+   */
   @HasPermission(permissions.updatePlatform)
   @Put(':id')
   @UseGuards(AuthGuard('jwt'), HasPermissionGuard)
@@ -70,6 +79,9 @@ export class PlatformController {
     });
   }
 
+  /**
+   * @deprecated Use `DELETE /api/v1/platforms/:id` instead
+   */
   @Delete(':id')
   @HasPermission(permissions.deletePlatform)
   @UseGuards(AuthGuard('jwt'), HasPermissionGuard)

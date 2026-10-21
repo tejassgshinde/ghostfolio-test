@@ -160,7 +160,7 @@ export class GfAdminPlatformComponent implements OnInit {
     this.adminService
       .fetchPlatforms()
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe((platforms) => {
+      .subscribe(({ platforms }) => {
         this.platforms = platforms;
 
         this.dataSource = new MatTableDataSource(platforms);
