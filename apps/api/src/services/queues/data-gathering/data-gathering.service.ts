@@ -1,3 +1,4 @@
+import { isValidCountryWeights } from '@ghostfolio/api/helper/country-weight.helper';
 import { isDataGatheringSupported } from '@ghostfolio/api/helper/data-source.helper';
 import { DataProviderService } from '@ghostfolio/api/services/data-provider/data-provider.service';
 import { DataEnhancerInterface } from '@ghostfolio/api/services/data-provider/interfaces/data-enhancer.interface';
@@ -134,7 +135,7 @@ export class DataGatheringService {
       const { assetClass, assetSubClass } = assetProfile;
 
       const {
-        countries,
+        countries: enhancedCountries,
         currency,
         cusip,
         dataSource,
@@ -147,6 +148,17 @@ export class DataGatheringService {
         sectors,
         url
       } = enhancedAssetProfile;
+
+      // Never persist out-of-range country weights, keep the remaining data
+      let countries = enhancedCountries;
+
+      if (!isValidCountryWeights(countries)) {
+        this.logger.warn(
+          `${symbol} (${dataSource}): Ignoring countries with weights outside of 0 and 1`
+        );
+
+        countries = undefined;
+      }
 
       try {
         await this.prismaService.symbolProfile.upsert({
