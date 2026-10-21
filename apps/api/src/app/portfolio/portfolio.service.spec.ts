@@ -840,6 +840,210 @@ describe('PortfolioService', () => {
         portfolioCalculatorFactory.createCalculator
       ).not.toHaveBeenCalled();
     });
+
+    describe('historical data', () => {
+      const dateOfFirstActivity = '2024-01-03';
+
+      const activity = {
+        assetProfile: { dataSource, symbol },
+        date: parseDate(dateOfFirstActivity),
+        quantity: 10,
+        tags: [],
+        unitPriceInAssetProfileCurrency: 100
+      } as unknown as Activity;
+
+      function mockHolding({
+        holdingBalancesByDate = []
+      }: {
+        holdingBalancesByDate?: {
+          date: string;
+          holdings: { averagePrice: Big; quantity: Big; symbol: string }[];
+        }[];
+      }) {
+        jest
+          .spyOn(activitiesService, 'getActivitiesForPortfolioCalculator')
+          .mockResolvedValue({ activities: [activity], count: 1 });
+
+        jest
+          .spyOn(portfolioCalculatorFactory, 'createCalculator')
+          .mockReturnValue({
+            getHoldingBalancesByDate: jest
+              .fn()
+              .mockReturnValue(holdingBalancesByDate),
+            getSnapshot: jest.fn().mockResolvedValue({
+              positions: [
+                {
+                  dataSource,
+                  dateOfFirstActivity,
+                  symbol,
+                  activitiesCount: 1,
+                  averageInvestment: new Big(0),
+                  averageInvestmentWithCurrencyEffect: new Big(0),
+                  averagePrice: new Big(100),
+                  currency: 'USD',
+                  dividendInBaseCurrency: new Big(0),
+                  feeInBaseCurrency: new Big(0),
+                  marketPrice: 130,
+                  quantity: new Big(20),
+                  tags: []
+                }
+              ]
+            })
+          } as unknown as PortfolioCalculator);
+      }
+
+      beforeEach(() => {
+        jest.spyOn(dataProviderService, 'getDataProvider').mockReturnValue({
+          getDataProviderInfo: jest.fn().mockReturnValue({})
+        } as unknown as ReturnType<typeof dataProviderService.getDataProvider>);
+
+        jest.spyOn(exchangeRateDataService, 'toCurrency').mockReturnValue(0);
+
+        Object.assign(portfolioService, {
+          benchmarkService: {
+            calculateChangeInPercentage: jest.fn().mockReturnValue(0)
+          }
+        });
+      });
+
+      it('requests the price history from the date of the first activity on', async () => {
+        mockHolding({});
+
+        const getHistorical = jest
+          .spyOn(dataProviderService, 'getHistorical')
+          .mockResolvedValue({});
+
+        await portfolioService.getHolding({
+          dataSource,
+          symbol,
+          userId: userDummyData.id
+        });
+
+        expect(getHistorical).toHaveBeenCalledWith(
+          expect.objectContaining({
+            assetProfileIdentifiers: [{ dataSource, symbol }],
+            from: new Date(`${dateOfFirstActivity}T00:00:00.000Z`)
+          })
+        );
+      });
+
+      it('returns no average price and no quantity before the first purchase and a continuous average price from the first purchase on, if the price history starts before the first purchase', async () => {
+        mockHolding({
+          holdingBalancesByDate: [
+            {
+              date: '2024-01-03',
+              holdings: [
+                { averagePrice: new Big(100), quantity: new Big(10), symbol }
+              ]
+            },
+            {
+              date: '2024-01-05',
+              holdings: [
+                { averagePrice: new Big(110), quantity: new Big(20), symbol }
+              ]
+            }
+          ]
+        });
+
+        jest.spyOn(dataProviderService, 'getHistorical').mockResolvedValue({
+          [`${dataSource}-${symbol}`]: {
+            '2024-01-01': { marketPrice: 90 },
+            '2024-01-02': { marketPrice: 95 },
+            '2024-01-03': { marketPrice: 100 },
+            '2024-01-04': { marketPrice: 120 },
+            '2024-01-05': { marketPrice: 130 }
+          }
+        });
+
+        const { historicalData } = await portfolioService.getHolding({
+          dataSource,
+          symbol,
+          userId: userDummyData.id
+        });
+
+        // The full price history is kept, including the dates before the
+        // first purchase
+        expect(historicalData.map(({ date }) => date)).toEqual([
+          '2024-01-01',
+          '2024-01-02',
+          '2024-01-03',
+          '2024-01-04',
+          '2024-01-05'
+        ]);
+
+        const itemsBeforeFirstPurchase = historicalData.filter(({ date }) => {
+          return date < dateOfFirstActivity;
+        });
+        const itemsFromFirstPurchase = historicalData.filter(({ date }) => {
+          return date >= dateOfFirstActivity;
+        });
+
+        // Dates before the first purchase carry no average price and no
+        // quantity, so the client can omit them from the average price line
+        expect(itemsBeforeFirstPurchase).toHaveLength(2);
+        expect(
+          itemsBeforeFirstPurchase.every(({ averagePrice, quantity }) => {
+            return averagePrice === 0 && quantity === 0;
+          })
+        ).toBe(true);
+
+        // From the first purchase on, every item has an average price and a
+        // quantity, so the line has no break up to the last date
+        expect(itemsFromFirstPurchase).toEqual([
+          expect.objectContaining({
+            averagePrice: 100,
+            date: '2024-01-03',
+            marketPrice: 100,
+            quantity: 10
+          }),
+          expect.objectContaining({
+            averagePrice: 100,
+            date: '2024-01-04',
+            marketPrice: 120,
+            quantity: 10
+          }),
+          expect.objectContaining({
+            averagePrice: 110,
+            date: '2024-01-05',
+            marketPrice: 130,
+            quantity: 20
+          })
+        ]);
+        expect(
+          itemsFromFirstPurchase.every(({ averagePrice, quantity }) => {
+            return averagePrice > 0 && quantity > 0;
+          })
+        ).toBe(true);
+
+        // The market price keeps the price history of the data provider
+        expect(
+          historicalData
+            .filter(({ date }) => date > '2024-01-01')
+            .map(({ marketPrice }) => marketPrice)
+        ).toEqual([95, 100, 120, 130]);
+      });
+
+      it('returns a single item at the date of the first purchase, if there is no price history', async () => {
+        mockHolding({});
+
+        jest.spyOn(dataProviderService, 'getHistorical').mockResolvedValue({});
+
+        const { historicalData } = await portfolioService.getHolding({
+          dataSource,
+          symbol,
+          userId: userDummyData.id
+        });
+
+        expect(historicalData).toEqual([
+          {
+            averagePrice: 100,
+            date: dateOfFirstActivity,
+            marketPrice: 100,
+            quantity: 10
+          }
+        ]);
+      });
+    });
   });
 
   describe('getInvestments', () => {

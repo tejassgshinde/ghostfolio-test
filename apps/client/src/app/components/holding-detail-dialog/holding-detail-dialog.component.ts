@@ -18,6 +18,7 @@ import {
   DataProviderInfo,
   EnhancedAssetProfile,
   Filter,
+  HistoricalDataItem,
   LineChartItem,
   NullableLineChartItem,
   User
@@ -85,6 +86,7 @@ import { isNumber, round, uniqBy } from 'lodash-es';
 import { NgxSkeletonLoaderModule } from 'ngx-skeleton-loader';
 import { filter, switchMap } from 'rxjs/operators';
 
+import { getOwnManualAssetChartSeries } from './holding-detail-dialog.helper';
 import {
   HoldingDetailDialogParams,
   HoldingDetailDialogResult
@@ -200,6 +202,7 @@ export class GfHoldingDetailDialogComponent implements OnInit {
       MatDialogRef<GfHoldingDetailDialogComponent, HoldingDetailDialogResult>
     >(MatDialogRef);
 
+  private historicalData: HistoricalDataItem[] = [];
   private tags: Tag[];
 
   private readonly changeDetectorRef = inject(ChangeDetectorRef);
@@ -373,6 +376,8 @@ export class GfHoldingDetailDialogComponent implements OnInit {
             this.user?.permissions,
             permissions.readMarketDataOfOwnAssetProfile
           );
+
+          this.historicalData = historicalData;
 
           this.historicalDataItems = historicalData.map(
             ({ averagePrice, date, marketPrice }) => {
@@ -714,14 +719,17 @@ export class GfHoldingDetailDialogComponent implements OnInit {
       .subscribe(({ marketData }) => {
         this.marketDataItems = marketData;
 
-        this.historicalDataItems = this.marketDataItems.map(
-          ({ date, marketPrice }) => {
-            return {
-              date: format(date, DATE_FORMAT),
-              value: marketPrice
-            };
-          }
-        );
+        const { benchmarkDataItems, historicalDataItems } =
+          getOwnManualAssetChartSeries({
+            averagePrice: this.averagePrice,
+            dateOfFirstActivity: this.dateOfFirstActivity,
+            historicalData: this.historicalData,
+            marketData: this.marketDataItems,
+            now: new Date()
+          });
+
+        this.benchmarkDataItems = benchmarkDataItems;
+        this.historicalDataItems = historicalDataItems;
 
         this.changeDetectorRef.markForCheck();
       });
