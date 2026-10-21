@@ -52,7 +52,7 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { IonIcon } from '@ionic/angular/standalone';
-import { isAfter, isToday } from 'date-fns';
+import { isAfter, isBefore, isToday } from 'date-fns';
 import { addIcons } from 'ionicons';
 import { calendarClearOutline, refreshOutline } from 'ionicons/icons';
 import { EMPTY } from 'rxjs';
@@ -574,7 +574,8 @@ export class GfCreateOrUpdateActivityDialogComponent {
 
     const isEligible =
       !!accountId &&
-      isToday(date) &&
+      !!date &&
+      (isToday(date) || isBefore(date, new Date())) &&
       !['LIABILITY', 'VALUABLE'].includes(type) &&
       !(dataSource === 'MANUAL' && type === 'BUY');
 
