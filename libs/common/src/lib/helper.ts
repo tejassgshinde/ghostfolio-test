@@ -358,6 +358,27 @@ export function formatMonthAndYear({
   }).format(date);
 }
 
+/**
+ * Formats a number so that it can be shown in an input and read back by
+ * `parseNumberFromLocaleString` with the same locale, without losing precision.
+ */
+export function formatNumberForLocaleInput({
+  locale = DEFAULT_LOCALE,
+  value
+}: {
+  locale?: string;
+  value?: number | null;
+}): string {
+  if (isNil(value) || !Number.isFinite(value)) {
+    return '';
+  }
+
+  return new Intl.NumberFormat(locale, {
+    maximumFractionDigits: 20,
+    numberingSystem: 'latn'
+  }).format(value);
+}
+
 export function getAllActivityTypes(): ActivityType[] {
   return Object.values(ActivityType);
 }
@@ -813,6 +834,114 @@ export function parseDate(date: string): Date | undefined {
   }
 
   return parseISO(date);
+}
+
+/**
+ * Strictly parses a number entered by a user according to the number format of
+ * the locale. Returns `null` for an empty input and `NaN` for text which is not
+ * a number in that format (for example a decimal separator in the wrong place,
+ * misplaced group separators or an exponent).
+ */
+export function parseNumberFromLocaleString({
+  locale = DEFAULT_LOCALE,
+  value
+}: {
+  locale?: string;
+  value?: string | null;
+}): number | null {
+  const trimmedValue = value?.trim();
+
+  if (!trimmedValue) {
+    return null;
+  }
+
+  const { decimal, group } = getNumberSeparators(locale);
+
+  const isNegative = /^[-−]/.test(trimmedValue);
+  const unsignedValue = normalizeSeparators(
+    isNegative ? trimmedValue.slice(1) : trimmedValue
+  );
+
+  const decimalParts = unsignedValue.split(decimal);
+
+  if (decimalParts.length > 2) {
+    return NaN;
+  }
+
+  const [integerPart, fractionPart = ''] = decimalParts;
+
+  if (
+    !/^\d*$/.test(fractionPart) ||
+    !isIntegerPartOfLocale({ group, integerPart, locale })
+  ) {
+    return NaN;
+  }
+
+  const integerDigits = integerPart.split(group).join('');
+
+  if (!integerDigits && !fractionPart) {
+    return NaN;
+  }
+
+  const number = Number(`${integerDigits || '0'}.${fractionPart || '0'}`);
+
+  return isNegative ? -number : number;
+}
+
+// Spaces (regular, no-break, narrow no-break) and apostrophes (typewriter,
+// typographic) are interchangeable when typing, but locales differ in which
+// one they use as the group separator
+function normalizeSeparators(aString: string) {
+  return aString.replace(/\s/g, ' ').replace(/['’ʼ]/g, `'`);
+}
+
+function getNumberSeparators(aLocale: string) {
+  const parts = new Intl.NumberFormat(aLocale, {
+    numberingSystem: 'latn',
+    useGrouping: true
+  }).formatToParts(10000000.5);
+
+  const decimal = parts.find(({ type }) => {
+    return type === 'decimal';
+  })?.value;
+  const group = parts.find(({ type }) => {
+    return type === 'group';
+  })?.value;
+
+  return {
+    decimal: normalizeSeparators(decimal ?? '.'),
+    group: normalizeSeparators(group ?? ',')
+  };
+}
+
+// An integer part is either free of group separators or grouped exactly like
+// the locale does it (for example 3 digits in de-DE or 2 and 3 digits in en-IN)
+function isIntegerPartOfLocale({
+  group,
+  integerPart,
+  locale
+}: {
+  group: string;
+  integerPart: string;
+  locale: string;
+}) {
+  const groups = integerPart.split(group);
+
+  if (groups.length === 1) {
+    return /^\d*$/.test(integerPart);
+  }
+
+  if (!groups.every((aGroup) => /^\d+$/.test(aGroup))) {
+    return false;
+  }
+
+  const grouped = new Intl.NumberFormat(locale, {
+    maximumFractionDigits: 0,
+    numberingSystem: 'latn',
+    useGrouping: 'always'
+  } as unknown as Intl.NumberFormatOptions).format(BigInt(groups.join('')));
+
+  return normalizeSeparators(grouped) === integerPart;
 }
 
 export function parseSymbol({ dataSource, symbol }: AssetProfileIdentifier) {

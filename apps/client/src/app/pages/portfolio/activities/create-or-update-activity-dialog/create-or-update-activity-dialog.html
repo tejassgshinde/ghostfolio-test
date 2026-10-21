@@ -191,7 +191,13 @@
               }
             }
           </mat-label>
-          <input formControlName="unitPrice" matInput type="number" />
+          <input
+            formControlName="unitPrice"
+            gfLocaleNumberInput
+            matInput
+            type="text"
+            [locale]="locale"
+          />
           <div
             class="ms-2"
             matTextSuffix
