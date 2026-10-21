@@ -30,17 +30,18 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatDialog } from '@angular/material/dialog';
 import { MatInputModule } from '@angular/material/input';
 import { MatSnackBar } from '@angular/material/snack-bar';
+import { utc, UTCDate } from '@date-fns/utc';
 import {
   addDays,
   addMonths,
   format,
   isBefore,
   isSameDay,
-  isToday,
   isValid,
   min,
   parse,
-  parseISO
+  parseISO,
+  startOfDay
 } from 'date-fns';
 import ms from 'ms';
 import { DeviceDetectorService } from 'ngx-device-detector';
@@ -105,7 +106,7 @@ export class GfHistoricalMarketDataEditorComponent
   private readonly historicalDataItems = computed<LineChartItem[]>(() =>
     this.marketData().map(({ date, marketPrice }) => {
       return {
-        date: format(date, DATE_FORMAT),
+        date: format(date, DATE_FORMAT, { in: utc }),
         value: marketPrice
       };
     })
@@ -123,44 +124,58 @@ export class GfHistoricalMarketDataEditorComponent
   }
 
   public ngOnChanges() {
-    const startDate = this.dateOfFirstActivity ?? this.marketData()[0]?.date;
+    // Market data is stored per calendar day (UTC midnight), so the days are
+    // derived in UTC to be independent of the time zone of the browser
+    const firstDate = this.dateOfFirstActivity ?? this.marketData()[0]?.date;
 
-    if (!startDate) {
+    if (!firstDate) {
       return;
     }
+
+    // `dateOfFirstActivity` may be an ISO string at runtime
+    const startDate = startOfDay(new UTCDate(firstDate), { in: utc });
 
     let date = startDate;
 
     const missingMarketData: { date: Date; marketPrice?: number }[] = [];
 
     if (this.historicalDataItems()?.[0]?.date) {
-      while (
-        isBefore(
-          date,
-          parse(this.historicalDataItems()[0].date, DATE_FORMAT, new Date())
-        )
-      ) {
+      const firstMarketDataDate = parseISO(this.historicalDataItems()[0].date, {
+        in: utc
+      });
+
+      while (isBefore(date, firstMarketDataDate)) {
         missingMarketData.push({
           date,
           marketPrice: undefined
         });
 
-        date = addDays(date, 1);
+        date = addDays(date, 1, { in: utc });
       }
     }
 
     const marketDataItems = [...missingMarketData, ...this.marketData()];
 
-    const lastDate = marketDataItems.at(-1)?.date;
-    if (!lastDate || !isToday(lastDate)) {
-      marketDataItems.push({ date: new Date() });
+    // Add the current day of the browser as placeholder, unless the day is
+    // already available (to not overwrite a stored price)
+    const todayString = format(new Date(), DATE_FORMAT);
+
+    if (
+      !marketDataItems.some(({ date: itemDate }) => {
+        return format(itemDate, DATE_FORMAT, { in: utc }) === todayString;
+      })
+    ) {
+      marketDataItems.push({ date: parseISO(todayString, { in: utc }) });
     }
 
     this.marketDataByMonth = {};
 
     for (const marketDataItem of marketDataItems) {
-      const currentDay = parseInt(format(marketDataItem.date, 'd'), 10);
-      const key = format(marketDataItem.date, 'yyyy-MM');
+      const currentDay = parseInt(
+        format(marketDataItem.date, 'd', { in: utc }),
+        10
+      );
+      const key = format(marketDataItem.date, 'yyyy-MM', { in: utc });
 
       if (!this.marketDataByMonth[key]) {
         this.marketDataByMonth[key] = {};
@@ -181,20 +196,23 @@ export class GfHistoricalMarketDataEditorComponent
     const endDateString = dates.at(-1);
 
     if (endDateString) {
-      const endDate = parseISO(endDateString);
+      const endDate = parseISO(endDateString, { in: utc });
 
-      let currentDate = min([
-        startDate,
-        ...(startDateString ? [parseISO(startDateString)] : [])
-      ]);
+      let currentDate = min(
+        [
+          startDate,
+          ...(startDateString ? [parseISO(startDateString, { in: utc })] : [])
+        ],
+        { in: utc }
+      );
 
       while (isBefore(currentDate, endDate)) {
-        const key = format(currentDate, 'yyyy-MM');
+        const key = format(currentDate, 'yyyy-MM', { in: utc });
         if (!this.marketDataByMonth[key]) {
           this.marketDataByMonth[key] = {};
         }
 
-        currentDate = addMonths(currentDate, 1);
+        currentDate = addMonths(currentDate, 1, { in: utc });
       }
     }
   }
