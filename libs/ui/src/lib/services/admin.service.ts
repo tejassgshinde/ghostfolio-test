@@ -18,7 +18,8 @@ import {
   AssetProfileIdentifier,
   DataProviderGhostfolioStatusResponse,
   DataProviderHistoricalResponse,
-  EnhancedAssetProfile
+  EnhancedAssetProfile,
+  PlatformsResponse
 } from '@ghostfolio/common/interfaces';
 import { DateRange } from '@ghostfolio/common/types';
 import type {
@@ -62,7 +63,7 @@ export class AdminService {
   }
 
   public deletePlatform(aId: string) {
-    return this.http.delete<void>(`/api/v1/platform/${aId}`);
+    return this.http.delete<void>(`/api/v1/platforms/${aId}`);
   }
 
   public deleteAssetProfileSplit({
@@ -114,7 +115,7 @@ export class AdminService {
   }
 
   public fetchPlatforms() {
-    return this.http.get<Platform[]>('/api/v1/platform');
+    return this.http.get<PlatformsResponse>('/api/v1/platforms');
   }
 
   public fetchUserById(id: string) {
@@ -253,12 +254,12 @@ export class AdminService {
   }
 
   public postPlatform(aPlatform: CreatePlatformDto) {
-    return this.http.post<Platform>(`/api/v1/platform`, aPlatform);
+    return this.http.post<Platform>(`/api/v1/platforms`, aPlatform);
   }
 
   public putPlatform(aPlatform: UpdatePlatformDto) {
     return this.http.put<Platform>(
-      `/api/v1/platform/${aPlatform.id}`,
+      `/api/v1/platforms/${aPlatform.id}`,
       aPlatform
     );
   }

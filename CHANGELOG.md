@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Moved the platform management of the admin control panel to the `/api/v1/platforms` endpoints and deprecated the `/api/v1/platform` endpoints
 - Improved the accessibility of the _Google_ icon in the login with access token dialog
 - Improved the accessibility of the _Google_ icon on the registration page
 - Improved the search by ISIN number in the _Financial Modeling Prep_ service
