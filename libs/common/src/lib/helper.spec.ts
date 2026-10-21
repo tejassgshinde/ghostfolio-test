@@ -6,6 +6,7 @@ import {
   canApplyFiltersToAccess,
   canUseCustomAssetProfileSymbol,
   extractNumberFromString,
+  formatNumberForLocaleInput,
   getCountryCodeFromCurrency,
   getEmojiFlag,
   getHoldingName,
@@ -23,6 +24,7 @@ import {
   isValidCustomAssetProfileSymbol,
   isValidDateAfter1970,
   isValidGranteeOfAccess,
+  parseNumberFromLocaleString,
   resolveUserSettings
 } from '@ghostfolio/common/helper';
 import { UserSettings } from '@ghostfolio/common/interfaces';
@@ -145,6 +147,61 @@ describe('Helper', () => {
 
     it('Not a number', () => {
       expect(extractNumberFromString({ value: 'X' })).toEqual(NaN);
+    });
+  });
+
+  describe('Format number for locale input', () => {
+    it('Format number in de-DE', () => {
+      expect(
+        formatNumberForLocaleInput({ locale: 'de-DE', value: 1234.5 })
+      ).toEqual('1.234,5');
+    });
+
+    it('Format number in en-US', () => {
+      expect(
+        formatNumberForLocaleInput({ locale: 'en-US', value: 1234.5 })
+      ).toEqual('1,234.5');
+    });
+
+    it('Format small number without exponent', () => {
+      expect(
+        formatNumberForLocaleInput({ locale: 'de-DE', value: 0.00001234 })
+      ).toEqual('0,00001234');
+    });
+
+    it('Format zero', () => {
+      expect(formatNumberForLocaleInput({ locale: 'de-DE', value: 0 })).toEqual(
+        '0'
+      );
+    });
+
+    it('Format null, undefined and NaN as empty string', () => {
+      expect(
+        formatNumberForLocaleInput({ locale: 'de-DE', value: null })
+      ).toEqual('');
+      expect(
+        formatNumberForLocaleInput({ locale: 'de-DE', value: undefined })
+      ).toEqual('');
+      expect(
+        formatNumberForLocaleInput({ locale: 'de-DE', value: NaN })
+      ).toEqual('');
+    });
+
+    describe('Round-trip with parse', () => {
+      const locales = ['de-DE', 'en-US', 'de-CH', 'fr-FR'];
+      const values = [1234.5, 0.1, 0.00001234, 1e-7, 123456789.123];
+
+      for (const locale of locales) {
+        for (const value of values) {
+          it(`Value ${value} in ${locale}`, () => {
+            const formatted = formatNumberForLocaleInput({ locale, value });
+
+            expect(
+              parseNumberFromLocaleString({ locale, value: formatted })
+            ).toEqual(value);
+          });
+        }
+      }
     });
   });
 
@@ -726,6 +783,97 @@ describe('Helper', () => {
       expect(isValidGranteeOfAccess({ granteeUserId, type: 'MCP' })).toEqual(
         false
       );
+    });
+  });
+
+  describe('Parse number from locale string', () => {
+    it('Parse de-DE number with group and decimal', () => {
+      expect(
+        parseNumberFromLocaleString({ locale: 'de-DE', value: '1.234,50' })
+      ).toEqual(1234.5);
+    });
+
+    it('Parse en-US number with group and decimal', () => {
+      expect(
+        parseNumberFromLocaleString({ locale: 'en-US', value: '1,234.50' })
+      ).toEqual(1234.5);
+    });
+
+    it('Parse ambiguous number per locale', () => {
+      expect(
+        parseNumberFromLocaleString({ locale: 'de-DE', value: '1.234' })
+      ).toEqual(1234);
+      expect(
+        parseNumberFromLocaleString({ locale: 'en-US', value: '1.234' })
+      ).toEqual(1.234);
+    });
+
+    it('Parse plain decimal', () => {
+      expect(
+        parseNumberFromLocaleString({ locale: 'de-DE', value: '12,5' })
+      ).toEqual(12.5);
+      expect(
+        parseNumberFromLocaleString({ locale: 'en-US', value: '12.5' })
+      ).toEqual(12.5);
+    });
+
+    it('Parse negative number', () => {
+      expect(
+        parseNumberFromLocaleString({ locale: 'en-US', value: '-12.5' })
+      ).toEqual(-12.5);
+    });
+
+    it('Parse empty and blank string as null', () => {
+      expect(
+        parseNumberFromLocaleString({ locale: 'en-US', value: '' })
+      ).toEqual(null);
+      expect(
+        parseNumberFromLocaleString({ locale: 'en-US', value: '  ' })
+      ).toEqual(null);
+    });
+
+    it('Parse text which is not a number as NaN', () => {
+      for (const value of ['abc', '12abc', '1e5']) {
+        expect(
+          parseNumberFromLocaleString({ locale: 'en-US', value })
+        ).toBeNaN();
+      }
+    });
+
+    it('Parse number in the format of another locale as NaN', () => {
+      expect(
+        parseNumberFromLocaleString({ locale: 'de-DE', value: '1,234.50' })
+      ).toBeNaN();
+      expect(
+        parseNumberFromLocaleString({ locale: 'en-US', value: '1.234,50' })
+      ).toBeNaN();
+      expect(
+        parseNumberFromLocaleString({ locale: 'en-US', value: '12,5' })
+      ).toBeNaN();
+    });
+
+    it('Parse de-CH number with apostrophe group', () => {
+      expect(
+        parseNumberFromLocaleString({ locale: 'de-CH', value: `1'234.5` })
+      ).toEqual(1234.5);
+      expect(
+        parseNumberFromLocaleString({ locale: 'de-CH', value: '1’234.5' })
+      ).toEqual(1234.5);
+    });
+
+    it('Parse fr-FR number with space group', () => {
+      expect(
+        parseNumberFromLocaleString({ locale: 'fr-FR', value: '1 234,5' })
+      ).toEqual(1234.5);
+      expect(
+        parseNumberFromLocaleString({ locale: 'fr-FR', value: '1\u202f234,5' })
+      ).toEqual(1234.5);
+    });
+
+    it('Parse es-ES number with group', () => {
+      expect(
+        parseNumberFromLocaleString({ locale: 'es-ES', value: '1.234,5' })
+      ).toEqual(1234.5);
     });
   });
 

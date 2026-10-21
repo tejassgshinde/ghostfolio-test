@@ -20,6 +20,7 @@ import type { Tag } from '@ghostfolio/prisma/browser';
 import { AssetClass, Type } from '@ghostfolio/prisma/enums';
 import { GfAccountSelectorComponent } from '@ghostfolio/ui/account-selector';
 import { translate } from '@ghostfolio/ui/i18n';
+import { GfLocaleNumberInputDirective } from '@ghostfolio/ui/locale-number-input';
 import { DataService } from '@ghostfolio/ui/services';
 import { GfSymbolAutocompleteComponent } from '@ghostfolio/ui/symbol-autocomplete';
 import { GfTagsSelectorComponent } from '@ghostfolio/ui/tags-selector';
@@ -66,6 +67,7 @@ import { ActivityType } from './types/activity-type.type';
   host: { class: 'h-100' },
   imports: [
     GfAccountSelectorComponent,
+    GfLocaleNumberInputDirective,
     GfSymbolAutocompleteComponent,
     GfTagsSelectorComponent,
     GfValueComponent,
@@ -127,7 +129,7 @@ export class GfCreateOrUpdateActivityDialogComponent {
   private readonly impersonationStorageService = inject(
     ImpersonationStorageService
   );
-  private locale = inject<string>(MAT_DATE_LOCALE);
+  protected locale = inject<string>(MAT_DATE_LOCALE);
   private readonly userService = inject(UserService);
 
   public constructor() {
