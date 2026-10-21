@@ -1,5 +1,6 @@
 import { AssetProfilesService } from '@ghostfolio/api/app/endpoints/asset-profiles/asset-profiles.service';
 import { environment } from '@ghostfolio/api/environments/environment';
+import { repairCountryWeights } from '@ghostfolio/api/helper/country-weight-repair.helper';
 import { BenchmarkService } from '@ghostfolio/api/services/benchmark/benchmark.service';
 import { ConfigurationService } from '@ghostfolio/api/services/configuration/configuration.service';
 import { DataProviderService } from '@ghostfolio/api/services/data-provider/data-provider.service';
@@ -50,6 +51,22 @@ import {
 import { differenceInDays } from 'date-fns';
 import { StatusCodes, getReasonPhrase } from 'http-status-codes';
 import { randomUUID } from 'node:crypto';
+
+export type CountryWeightRepairStore = 'AssetProfileOverrides' | 'SymbolProfile';
+
+export interface CountryWeightRepairReport {
+  dryRun: boolean;
+  repaired: (AssetProfileIdentifier & {
+    after: Record<string, unknown>[];
+    before: Record<string, unknown>[];
+    store: CountryWeightRepairStore;
+  })[];
+  skipped: (AssetProfileIdentifier & {
+    before: Record<string, unknown>[];
+    reason: string;
+    store: CountryWeightRepairStore;
+  })[];
+}
 
 @Injectable()
 export class AdminService {
@@ -466,6 +483,109 @@ export class AdminService {
     }
 
     return mergedAssetProfile;
+  }
+
+  public async repairCountryWeights({
+    dryRun = true
+  }: {
+    dryRun?: boolean;
+  } = {}): Promise<CountryWeightRepairReport> {
+    const report: CountryWeightRepairReport = {
+      dryRun,
+      repaired: [],
+      skipped: []
+    };
+
+    const stores: {
+      identifier: (row: any) => AssetProfileIdentifier;
+      rows: any[];
+      store: CountryWeightRepairStore;
+      update: (row: any, after: Prisma.JsonArray) => Promise<{ count: number }>;
+    }[] = [
+      {
+        identifier: ({ dataSource, symbol }) => ({ dataSource, symbol }),
+        rows: await this.prismaService.symbolProfile.findMany({
+          select: { countries: true, dataSource: true, id: true, symbol: true }
+        }),
+        store: 'SymbolProfile',
+        update: ({ countries, id }, after) =>
+          this.prismaService.symbolProfile.updateMany({
+            data: { countries: after },
+            // Compare-and-set: only write if the row did not change since read
+            where: { id, countries: { equals: countries } }
+          })
+      },
+      {
+        identifier: ({ symbolProfile: { dataSource, symbol } }) => ({
+          dataSource,
+          symbol
+        }),
+        rows: await this.prismaService.assetProfileOverrides.findMany({
+          select: {
+            countries: true,
+            symbolProfile: { select: { dataSource: true, symbol: true } },
+            symbolProfileId: true
+          }
+        }),
+        store: 'AssetProfileOverrides',
+        update: ({ countries, symbolProfileId }, after) =>
+          this.prismaService.assetProfileOverrides.updateMany({
+            data: { countries: after },
+            where: { symbolProfileId, countries: { equals: countries } }
+          })
+      }
+    ];
+
+    for (const { identifier, rows, store, update } of stores) {
+      for (const row of rows) {
+        const result = repairCountryWeights(row.countries);
+
+        if (result.status === 'unchanged') {
+          continue;
+        }
+
+        const { dataSource, symbol } = identifier(row);
+        const before = row.countries as Record<string, unknown>[];
+
+        if (result.status === 'skipped') {
+          report.skipped.push({
+            before,
+            dataSource,
+            store,
+            symbol,
+            reason: result.reason
+          });
+
+          continue;
+        }
+
+        if (!dryRun) {
+          const { count } = await update(row, result.after as Prisma.JsonArray);
+
+          if (count === 0) {
+            report.skipped.push({
+              before,
+              dataSource,
+              store,
+              symbol,
+              reason: 'row changed concurrently, not written'
+            });
+
+            continue;
+          }
+        }
+
+        report.repaired.push({
+          before,
+          dataSource,
+          store,
+          symbol,
+          after: result.after
+        });
+      }
+    }
+
+    return report;
   }
 
   public async patchAssetProfileData(

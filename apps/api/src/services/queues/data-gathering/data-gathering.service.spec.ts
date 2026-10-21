@@ -186,6 +186,100 @@ describe('DataGatheringService', () => {
     });
   });
 
+  describe('gatherAssetProfiles', () => {
+    const identifier = { dataSource: 'YAHOO' as const, symbol: 'AAPL' };
+
+    function createService({
+      enhancerCountries,
+      providerCountries
+    }: {
+      enhancerCountries?: { code: string; weight: number }[];
+      providerCountries?: { code: string; weight: number }[];
+    }) {
+      const upsert = jest.fn().mockResolvedValue({});
+
+      const assetProfile = {
+        ...identifier,
+        countries: providerCountries,
+        currency: 'USD',
+        name: 'Apple'
+      };
+
+      const dataEnhancers = enhancerCountries
+        ? [
+            {
+              enhance: jest.fn().mockImplementation(({ response }) => {
+                return Promise.resolve({
+                  ...response,
+                  countries: enhancerCountries
+                });
+              }),
+              getName: () => 'ENHANCER'
+            }
+          ]
+        : [];
+
+      const service = new DataGatheringService(
+        dataEnhancers as any, // ts-escape-ok: partial mock of DataEnhancerInterface[]
+        null,
+        {
+          getAssetProfiles: jest
+            .fn()
+            .mockResolvedValue({ 'YAHOO-AAPL': assetProfile })
+        } as any, // ts-escape-ok: partial mock of DataProviderService
+        null,
+        null,
+        { symbolProfile: { upsert } } as any, // ts-escape-ok: partial mock of PrismaService
+        null,
+        { getSymbolProfiles: jest.fn().mockResolvedValue([]) } as any // ts-escape-ok: partial mock of SymbolProfileService
+      );
+
+      return { service, upsert };
+    }
+
+    it.each([
+      ['provider', { providerCountries: [{ code: 'US', weight: 60 }] }],
+      ['enhancer', { enhancerCountries: [{ code: 'US', weight: 60 }] }]
+    ])(
+      'does not persist out-of-range countries from the %s',
+      async (_source, options) => {
+        const { service, upsert } = createService(options);
+
+        await service.gatherAssetProfiles([identifier]);
+
+        expect(upsert).toHaveBeenCalledTimes(1);
+
+        const { create, update } = upsert.mock.calls[0][0];
+
+        expect(create.countries).toBeUndefined();
+        expect(update.countries).toBeUndefined();
+        expect(create).toEqual(
+          expect.objectContaining({ currency: 'USD', name: 'Apple' })
+        );
+        expect(update).toEqual(
+          expect.objectContaining({ currency: 'USD', name: 'Apple' })
+        );
+      }
+    );
+
+    it.each([
+      ['provider', { providerCountries: [{ code: 'US', weight: 0.6 }] }],
+      ['enhancer', { enhancerCountries: [{ code: 'US', weight: 0.6 }] }]
+    ])(
+      'persists valid countries from the %s unchanged',
+      async (_source, options) => {
+        const { service, upsert } = createService(options);
+
+        await service.gatherAssetProfiles([identifier]);
+
+        const { create, update } = upsert.mock.calls[0][0];
+
+        expect(create.countries).toEqual([{ code: 'US', weight: 0.6 }]);
+        expect(update.countries).toEqual([{ code: 'US', weight: 0.6 }]);
+      }
+    );
+  });
+
   describe('gatherSymbols', () => {
     it('does not apply the cooldown to a manually triggered gathering', async () => {
       await dataGatheringService.gatherSymbols({

@@ -61,7 +61,7 @@ import { DataSource, MarketData, Prisma, SymbolProfile } from '@prisma/client';
 import { isDate, parseISO } from 'date-fns';
 import { StatusCodes, getReasonPhrase } from 'http-status-codes';
 
-import { AdminService } from './admin.service';
+import { AdminService, CountryWeightRepairReport } from './admin.service';
 import { PropertyKeyPipe } from './pipes/property-key.pipe';
 
 @AllowDuringImpersonation()
@@ -342,6 +342,18 @@ export class AdminController {
       { dataSource, symbol },
       assetProfile
     );
+  }
+
+  @HasPermission(permissions.accessAdminControl)
+  @Post('repair-country-weights')
+  @UseGuards(AuthGuard('jwt'), HasPermissionGuard)
+  public async repairCountryWeights(
+    // Safe by default: only an explicit dryRun=false writes to the database
+    @Query('dryRun') dryRun?: string
+  ): Promise<CountryWeightRepairReport> {
+    return this.adminService.repairCountryWeights({
+      dryRun: dryRun !== 'false'
+    });
   }
 
   @HasPermission(permissions.accessAdminControl)

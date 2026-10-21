@@ -1,3 +1,7 @@
+import {
+  COUNTRY_WEIGHT_ERROR_MESSAGE,
+  isValidCountryWeights
+} from '@ghostfolio/api/helper/country-weight.helper';
 import { PrismaService } from '@ghostfolio/api/services/prisma/prisma.service';
 import { UNKNOWN_KEY } from '@ghostfolio/common/config';
 import { applyAssetProfileOverrides } from '@ghostfolio/common/helper';
@@ -10,7 +14,7 @@ import {
 import { Country } from '@ghostfolio/common/interfaces/country.interface';
 import { Sector } from '@ghostfolio/common/interfaces/sector.interface';
 
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import {
   AssetProfileOverrides,
   DataSource,
@@ -26,6 +30,10 @@ export class SymbolProfileService {
   public async add(
     assetProfile: Prisma.SymbolProfileCreateInput
   ): Promise<SymbolProfile | never> {
+    if (!isValidCountryWeights(assetProfile.countries)) {
+      throw new BadRequestException(COUNTRY_WEIGHT_ERROR_MESSAGE);
+    }
+
     return this.prismaService.symbolProfile.create({ data: assetProfile });
   }
 
