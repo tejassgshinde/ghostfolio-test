@@ -91,6 +91,7 @@ import { MatMenuModule } from '@angular/material/menu';
 import { MatSelectModule } from '@angular/material/select';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatTabsModule } from '@angular/material/tabs';
+import { utc } from '@date-fns/utc';
 import { IonIcon } from '@ionic/angular/standalone';
 import { isUUID } from 'class-validator';
 import { format } from 'date-fns';
@@ -428,7 +429,7 @@ export class GfAssetProfileDialogComponent implements OnInit {
 
         this.historicalDataItems = marketData.map(({ date, marketPrice }) => {
           return {
-            date: format(date, DATE_FORMAT),
+            date: format(date, DATE_FORMAT, { in: utc }),
             value: marketPrice
           };
         });

@@ -10,6 +10,7 @@ import { MarketDataOfMarketsResponse } from '@ghostfolio/common/interfaces';
 import { hasPermission, permissions } from '@ghostfolio/common/permissions';
 import type { RequestWithUser } from '@ghostfolio/common/types';
 
+import { utc } from '@date-fns/utc';
 import {
   Body,
   Controller,
@@ -101,7 +102,7 @@ export class MarketDataController {
         dataSource,
         marketPrice,
         symbol,
-        date: parseISO(date),
+        date: parseISO(date, { in: utc }),
         state: 'CLOSE'
       })
     );
