@@ -18,6 +18,6 @@ export default {
       }
     ]
   },
-  transformIgnorePatterns: ['node_modules/(?!.*.mjs$|lodash-es/)'],
+  transformIgnorePatterns: ['node_modules/(?!.*.mjs$|lodash-es/|@ionic/|@stencil/|ionicons/)'],
   preset: '../../jest.preset.js'
 };
