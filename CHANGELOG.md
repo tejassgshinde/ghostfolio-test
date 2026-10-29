@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Fixed the data source mapping in the data provider service to apply only to the mapped data source
+- Fixed the calculation of the proportion of net worth on the allocations page in the presence of liabilities and filters
 
 ## 3.87.0 - 2026-10-17
 
