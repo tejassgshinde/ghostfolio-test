@@ -1234,13 +1234,18 @@ describe('PortfolioService', () => {
       } as unknown as Activity;
     }
 
-    function createPortfolioCalculator() {
+    function createPortfolioCalculator({
+      currentValue = 3000,
+      liabilities = 0
+    }: { currentValue?: number; liabilities?: number } = {}) {
       return {
         getFeesInBaseCurrency: jest.fn().mockResolvedValue(new Big(0)),
         getInterestInBaseCurrency: jest.fn().mockResolvedValue(new Big(0)),
-        getLiabilitiesInBaseCurrency: jest.fn().mockResolvedValue(new Big(0)),
+        getLiabilitiesInBaseCurrency: jest
+          .fn()
+          .mockResolvedValue(new Big(liabilities)),
         getSnapshot: jest.fn().mockResolvedValue({
-          currentValueInBaseCurrency: new Big(3000),
+          currentValueInBaseCurrency: new Big(currentValue),
           totalCashInBaseCurrency: new Big(1000),
           totalInvestment: new Big(2000),
           totalInvestmentWithCurrencyEffect: new Big(2000)
@@ -1488,6 +1493,309 @@ describe('PortfolioService', () => {
       // 6 * 150 (unit price of the latest activity)
       expect(summary.excludedAccountsAndActivities).toBe(900);
       expect(summary.totalValueInBaseCurrency).toBe(3900);
+    });
+
+    describe('filteredValueInPercentage', () => {
+      const wholeActivities = [{ id: 'whole' } as Activity];
+
+      // share = (filtered assets - liabilities in that filter) / total net
+      // worth, where the total net worth is based on the whole portfolio
+      // (value 10000, liabilities 1000)
+      function mockWholeCalculator({
+        currentValue = 10000,
+        liabilities = 1000
+      }: { currentValue?: number; liabilities?: number } = {}) {
+        return jest
+          .spyOn(portfolioCalculatorFactory, 'createCalculator')
+          .mockReturnValue(
+            createPortfolioCalculator({ currentValue, liabilities })
+          );
+      }
+
+      function getSummaryOfFilter({
+        filteredValue,
+        filters,
+        liabilities = 0
+      }: {
+        filteredValue: number;
+        filters: object[];
+        liabilities?: number;
+      }) {
+        return getSummary({
+          filters,
+          balanceInBaseCurrency: 1000,
+          emergencyFundHoldingsValueInBaseCurrency: 0,
+          filteredValueInBaseCurrency: new Big(filteredValue),
+          portfolioCalculator: createPortfolioCalculator({
+            liabilities,
+            currentValue: filteredValue
+          }),
+          userCurrency: 'CHF',
+          userId: userDummyData.id
+        });
+      }
+
+      beforeEach(() => {
+        jest.spyOn(accountService, 'getCashDetails').mockResolvedValue({
+          accounts: [],
+          balanceInBaseCurrency: 1000
+        });
+
+        // Dispatch by arguments: the same spy serves the excluded-inclusive
+        // call and the call for the whole portfolio
+        jest
+          .spyOn(activitiesService, 'getActivitiesForPortfolioCalculator')
+          .mockImplementation(
+            async ({ withExcludedAccountsAndActivities }) => {
+              return withExcludedAccountsAndActivities
+                ? { activities: [], count: 0 }
+                : { activities: wholeActivities, count: 1 };
+            }
+          );
+      });
+
+      it('should be 1 without a filter and without a liability', async () => {
+        const createCalculator = mockWholeCalculator();
+
+        const summary = await getSummary({
+          balanceInBaseCurrency: 1000,
+          emergencyFundHoldingsValueInBaseCurrency: 0,
+          filteredValueInBaseCurrency: new Big(3000),
+          portfolioCalculator: createPortfolioCalculator(),
+          userCurrency: 'CHF',
+          userId: userDummyData.id
+        });
+
+        expect(summary.filteredValueInPercentage).toBe(1);
+        expect(createCalculator).not.toHaveBeenCalled();
+      });
+
+      it('should be 1 without a filter and with a liability', async () => {
+        const createCalculator = mockWholeCalculator();
+
+        const summary = await getSummary({
+          balanceInBaseCurrency: 1000,
+          emergencyFundHoldingsValueInBaseCurrency: 0,
+          filteredValueInBaseCurrency: new Big(10000),
+          portfolioCalculator: createPortfolioCalculator({
+            currentValue: 10000,
+            liabilities: 1000
+          }),
+          userCurrency: 'CHF',
+          userId: userDummyData.id
+        });
+
+        // Not 10000 / 9000 = 1.1111
+        expect(summary.filteredValueInPercentage).toBe(1);
+
+        // The other figures are unchanged
+        expect(summary.filteredValueInBaseCurrency).toBe(10000);
+        expect(summary.liabilitiesInBaseCurrency).toBe(1000);
+        expect(summary.totalValueInBaseCurrency).toBe(9000);
+
+        expect(createCalculator).not.toHaveBeenCalled();
+      });
+
+      it('should be the share of the asset class in the whole net worth and ignore liabilities (Equity)', async () => {
+        const createCalculator = mockWholeCalculator();
+
+        const summary = await getSummaryOfFilter({
+          filteredValue: 6000,
+          filters: [{ id: 'EQUITY', type: 'ASSET_CLASS' }],
+          // A liability counts under no asset class
+          liabilities: 500
+        });
+
+        expect(summary.filteredValueInPercentage).toBeCloseTo(6000 / 9000);
+        expect(summary.filteredValueInBaseCurrency).toBe(6000);
+        expect(summary.liabilitiesInBaseCurrency).toBe(500);
+        expect(summary.totalValueInBaseCurrency).toBe(5500);
+
+        expect(createCalculator).toHaveBeenCalledTimes(1);
+        expect(createCalculator.mock.calls[0][0]).toEqual(
+          expect.objectContaining({
+            activities: wholeActivities,
+            currency: 'CHF',
+            userId: userDummyData.id
+          })
+        );
+        expect(createCalculator.mock.calls[0][0].filters).toBeUndefined();
+        expect(
+          activitiesService.getActivitiesForPortfolioCalculator
+        ).toHaveBeenCalledWith({
+          userCurrency: 'CHF',
+          userId: userDummyData.id
+        });
+      });
+
+      it('should be the share of the asset class in the whole net worth (Liquidity)', async () => {
+        mockWholeCalculator();
+
+        const summary = await getSummaryOfFilter({
+          filteredValue: 4000,
+          filters: [{ id: 'LIQUIDITY', type: 'ASSET_CLASS' }]
+        });
+
+        expect(summary.filteredValueInPercentage).toBeCloseTo(4000 / 9000);
+      });
+
+      it('should not show 100% for every asset class', async () => {
+        mockWholeCalculator();
+
+        const equity = await getSummaryOfFilter({
+          filteredValue: 6000,
+          filters: [{ id: 'EQUITY', type: 'ASSET_CLASS' }]
+        });
+
+        const liquidity = await getSummaryOfFilter({
+          filteredValue: 4000,
+          filters: [{ id: 'LIQUIDITY', type: 'ASSET_CLASS' }]
+        });
+
+        expect(equity.filteredValueInPercentage).not.toBe(1);
+        expect(liquidity.filteredValueInPercentage).not.toBe(1);
+
+        // The asset classes add up to the assets of the whole (10000 / 9000)
+        // since liabilities count under no asset class
+        expect(
+          equity.filteredValueInPercentage +
+            liquidity.filteredValueInPercentage
+        ).toBeCloseTo(10000 / 9000);
+      });
+
+      it('should subtract the liabilities recorded on the account (account A)', async () => {
+        const createCalculator = mockWholeCalculator();
+
+        const summary = await getSummaryOfFilter({
+          filteredValue: 7000,
+          filters: [{ id: 'account-a', type: 'ACCOUNT' }],
+          liabilities: 1000
+        });
+
+        expect(summary.filteredValueInPercentage).toBeCloseTo(6000 / 9000);
+        expect(summary.filteredValueInBaseCurrency).toBe(7000);
+        expect(summary.liabilitiesInBaseCurrency).toBe(1000);
+        expect(createCalculator.mock.calls[0][0].filters).toBeUndefined();
+      });
+
+      it('should add up to 1 for all accounts, cash included', async () => {
+        mockWholeCalculator();
+
+        const accountA = await getSummaryOfFilter({
+          filteredValue: 7000,
+          filters: [{ id: 'account-a', type: 'ACCOUNT' }],
+          liabilities: 1000
+        });
+
+        const accountB = await getSummaryOfFilter({
+          filteredValue: 3000,
+          filters: [{ id: 'account-b', type: 'ACCOUNT' }]
+        });
+
+        expect(accountB.filteredValueInPercentage).toBeCloseTo(3000 / 9000);
+        expect(
+          accountA.filteredValueInPercentage +
+            accountB.filteredValueInPercentage
+        ).toBeCloseTo(1);
+      });
+
+      it('should not count excluded accounts and activities in the whole net worth', async () => {
+        const createCalculator = mockWholeCalculator();
+
+        jest.spyOn(accountService, 'getCashDetails').mockResolvedValue({
+          accounts: [],
+          balanceInBaseCurrency: 1500
+        });
+
+        jest
+          .spyOn(activitiesService, 'getActivitiesForPortfolioCalculator')
+          .mockImplementation(
+            async ({ withExcludedAccountsAndActivities }) => {
+              return withExcludedAccountsAndActivities
+                ? {
+                    activities: [
+                      createExcludedActivity({
+                        quantity: 10,
+                        symbol: 'AAPL',
+                        type: 'BUY',
+                        unitPrice: 100
+                      })
+                    ],
+                    count: 1
+                  }
+                : { activities: wholeActivities, count: 1 };
+            }
+          );
+
+        jest.spyOn(currentRateService, 'getValues').mockResolvedValue({
+          dataProviderInfos: [],
+          errors: [],
+          values: [
+            {
+              dataSource: DataSource.YAHOO,
+              date: new Date(),
+              marketPrice: 200,
+              symbol: 'AAPL'
+            }
+          ]
+        });
+
+        const withoutFilter = await getSummary({
+          balanceInBaseCurrency: 1000,
+          emergencyFundHoldingsValueInBaseCurrency: 0,
+          filteredValueInBaseCurrency: new Big(3000),
+          portfolioCalculator: createPortfolioCalculator(),
+          userCurrency: 'CHF',
+          userId: userDummyData.id
+        });
+
+        // The excluded amounts (500 + 10 * 200) do not change the share
+        expect(withoutFilter.filteredValueInPercentage).toBe(1);
+        expect(withoutFilter.excludedAccountsAndActivities).toBe(2500);
+        expect(withoutFilter.totalValueInBaseCurrency).toBe(5500);
+        expect(createCalculator).not.toHaveBeenCalled();
+
+        const withFilter = await getSummary({
+          balanceInBaseCurrency: 1000,
+          emergencyFundHoldingsValueInBaseCurrency: 0,
+          filteredValueInBaseCurrency: new Big(6000),
+          filters: [{ id: 'EQUITY', type: 'ASSET_CLASS' }],
+          portfolioCalculator: createPortfolioCalculator({
+            currentValue: 6000
+          }),
+          userCurrency: 'CHF',
+          userId: userDummyData.id
+        });
+
+        // Denominator: 10000 - 1000 (whole calculator), not 9000 + 2500
+        expect(withFilter.filteredValueInPercentage).toBeCloseTo(6000 / 9000);
+        expect(withFilter.excludedAccountsAndActivities).toBe(2500);
+        expect(withFilter.totalValueInBaseCurrency).toBe(8500);
+        expect(createCalculator.mock.calls[0][0].activities).toBe(
+          wholeActivities
+        );
+      });
+
+      it('should be undefined if the whole net worth is 0', async () => {
+        mockWholeCalculator({ currentValue: 0, liabilities: 0 });
+
+        const withoutFilter = await getSummary({
+          balanceInBaseCurrency: 1000,
+          emergencyFundHoldingsValueInBaseCurrency: 0,
+          filteredValueInBaseCurrency: new Big(0),
+          portfolioCalculator: createPortfolioCalculator({ currentValue: 0 }),
+          userCurrency: 'CHF',
+          userId: userDummyData.id
+        });
+
+        const withFilter = await getSummaryOfFilter({
+          filteredValue: 0,
+          filters: [{ id: 'EQUITY', type: 'ASSET_CLASS' }]
+        });
+
+        expect(withoutFilter.filteredValueInPercentage).toBeUndefined();
+        expect(withFilter.filteredValueInPercentage).toBeUndefined();
+      });
     });
   });
 

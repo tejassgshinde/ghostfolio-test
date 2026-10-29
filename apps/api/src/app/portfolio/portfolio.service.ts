@@ -884,6 +884,7 @@ export class PortfolioService {
       summary = await this.getSummary({
         filteredValueInBaseCurrency,
         portfolioCalculator,
+        filters: portfolioSnapshotFilters,
         userCurrency,
         userId,
         balanceInBaseCurrency: cashDetails.balanceInBaseCurrency,
@@ -2170,6 +2171,7 @@ export class PortfolioService {
     balanceInBaseCurrency,
     emergencyFundHoldingsValueInBaseCurrency,
     filteredValueInBaseCurrency,
+    filters,
     portfolioCalculator,
     userCurrency,
     userId
@@ -2177,6 +2179,7 @@ export class PortfolioService {
     balanceInBaseCurrency: number;
     emergencyFundHoldingsValueInBaseCurrency: number;
     filteredValueInBaseCurrency: Big;
+    filters?: Filter[];
     portfolioCalculator: PortfolioCalculator;
     userCurrency: string;
     userId: string;
@@ -2236,6 +2239,41 @@ export class PortfolioService {
 
     const liabilities =
       await portfolioCalculator.getLiabilitiesInBaseCurrency();
+
+    // The total net worth (denominator) is always based on the unfiltered
+    // portfolio, excluding accounts and activities marked as excluded from
+    // analysis
+    let wholeCalculator = portfolioCalculator;
+
+    if (filters?.length > 0) {
+      const { activities: wholeActivities } =
+        await this.activitiesService.getActivitiesForPortfolioCalculator({
+          userCurrency,
+          userId
+        });
+
+      wholeCalculator = this.calculatorFactory.createCalculator({
+        userId,
+        activities: wholeActivities,
+        calculationType: this.getUserPerformanceCalculationType(user),
+        currency: userCurrency,
+        subscriptionType: user.subscription?.type
+      });
+    }
+
+    const wholeSnapshot = await wholeCalculator.getSnapshot();
+
+    const wholeNetWorth = new Big(
+      wholeSnapshot.currentValueInBaseCurrency
+    ).minus(await wholeCalculator.getLiabilitiesInBaseCurrency());
+
+    // Liabilities count under the account they were recorded on and under no
+    // asset class
+    const liabilitiesInFilter = filters?.some(({ type }) => {
+      return type === 'ASSET_CLASS';
+    })
+      ? new Big(0)
+      : liabilities;
 
     const totalBuy = this.getSumOfActivityType({
       userCurrency,
@@ -2337,9 +2375,12 @@ export class PortfolioService {
       },
       fees: fees.toNumber(),
       filteredValueInBaseCurrency: filteredValueInBaseCurrency.toNumber(),
-      filteredValueInPercentage: netWorth
-        ? filteredValueInBaseCurrency.div(netWorth).toNumber()
-        : undefined,
+      filteredValueInPercentage: wholeNetWorth.eq(0)
+        ? undefined
+        : filteredValueInBaseCurrency
+            .minus(liabilitiesInFilter)
+            .div(wholeNetWorth)
+            .toNumber(),
       fireWealth: {
         today: {
           valueInBaseCurrency: fireWealthInBaseCurrency.gt(0)
