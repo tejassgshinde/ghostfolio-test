@@ -1,3 +1,4 @@
+import { ReturnUrlStorageService } from '@ghostfolio/client/services/return-url-storage.service';
 import { TokenStorageService } from '@ghostfolio/client/services/token-storage.service';
 import { WebAuthnService } from '@ghostfolio/client/services/web-authn.service';
 
@@ -27,6 +28,7 @@ export class GfWebauthnPageComponent implements OnInit {
   public constructor(
     private changeDetectorRef: ChangeDetectorRef,
     private destroyRef: DestroyRef,
+    private returnUrlStorageService: ReturnUrlStorageService,
     private router: Router,
     private tokenStorageService: TokenStorageService,
     private webAuthnService: WebAuthnService
@@ -54,7 +56,14 @@ export class GfWebauthnPageComponent implements OnInit {
       .subscribe(
         ({ authToken }) => {
           this.tokenStorageService.saveToken(authToken, false);
-          this.router.navigate(['/']);
+
+          const returnUrl = this.returnUrlStorageService.consumeReturnUrl();
+
+          if (returnUrl) {
+            this.router.navigateByUrl(returnUrl);
+          } else {
+            this.router.navigate(['/']);
+          }
         },
         (error) => {
           console.error(error);

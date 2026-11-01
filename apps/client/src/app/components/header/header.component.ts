@@ -5,6 +5,7 @@ import {
 import { GfLoginWithAccessTokenDialogComponent } from '@ghostfolio/client/components/login-with-access-token-dialog/login-with-access-token-dialog.component';
 import { LayoutService } from '@ghostfolio/client/core/layout.service';
 import { ImpersonationStorageService } from '@ghostfolio/client/services/impersonation-storage.service';
+import { ReturnUrlStorageService } from '@ghostfolio/client/services/return-url-storage.service';
 import {
   KEY_STAY_SIGNED_IN,
   SettingsStorageService
@@ -131,6 +132,7 @@ export class GfHeaderComponent implements OnChanges {
   );
   private readonly layoutService = inject(LayoutService);
   private readonly notificationService = inject(NotificationService);
+  private readonly returnUrlStorageService = inject(ReturnUrlStorageService);
   private readonly router = inject(Router);
   private readonly settingsStorageService = inject(SettingsStorageService);
   private readonly tokenStorageService = inject(TokenStorageService);
@@ -349,9 +351,12 @@ export class GfHeaderComponent implements OnChanges {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((user) => {
         const userLanguage = user?.settings?.language;
+        const returnUrl = this.returnUrlStorageService.consumeReturnUrl();
 
         if (userLanguage && document.documentElement.lang !== userLanguage) {
-          window.location.href = `../${userLanguage}`;
+          window.location.href = `../${userLanguage}${returnUrl ?? ''}`;
+        } else if (returnUrl) {
+          this.router.navigateByUrl(returnUrl);
         } else {
           this.router.navigate(['/']);
         }

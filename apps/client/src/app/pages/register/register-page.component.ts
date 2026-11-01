@@ -1,3 +1,4 @@
+import { ReturnUrlStorageService } from '@ghostfolio/client/services/return-url-storage.service';
 import { TokenStorageService } from '@ghostfolio/client/services/token-storage.service';
 import { UserService } from '@ghostfolio/client/services/user/user.service';
 import { InfoItem, LineChartItem } from '@ghostfolio/common/interfaces';
@@ -44,6 +45,7 @@ export class GfRegisterPageComponent implements OnInit {
     private destroyRef: DestroyRef,
     private deviceDetectorService: DeviceDetectorService,
     private dialog: MatDialog,
+    private returnUrlStorageService: ReturnUrlStorageService,
     private router: Router,
     private tokenStorageService: TokenStorageService,
     private userService: UserService
@@ -100,7 +102,13 @@ export class GfRegisterPageComponent implements OnInit {
         if (authToken) {
           this.tokenStorageService.saveToken(authToken, true);
 
-          this.router.navigate(['/']);
+          const returnUrl = this.returnUrlStorageService.consumeReturnUrl();
+
+          if (returnUrl) {
+            this.router.navigateByUrl(returnUrl);
+          } else {
+            this.router.navigate(['/']);
+          }
         }
       });
   }
