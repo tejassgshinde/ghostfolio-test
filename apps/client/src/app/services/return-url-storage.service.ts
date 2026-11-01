@@ -2,9 +2,9 @@ import { internalRoutes, publicRoutes } from '@ghostfolio/common/routes/routes';
 
 import { Service } from '@angular/core';
 
-export const KEY_RETURN_URL = 'returnUrl';
+export const KEY_RETURN_URL = 'gf-return-url';
 
-const MAX_RETURN_URL_LENGTH = 2048;
+const MAX_RETURN_URL_LENGTH = 512;
 
 /**
  * Returns `aUrl` unchanged (never decoded) if it is a safe in-app router URL,

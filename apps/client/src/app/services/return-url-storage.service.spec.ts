@@ -51,7 +51,7 @@ describe('getSafeReturnUrl', () => {
   });
 
   it('rejects an over-long string', () => {
-    expect(getSafeReturnUrl('/' + 'a'.repeat(2048))).toBeUndefined();
+    expect(getSafeReturnUrl('/' + 'a'.repeat(512))).toBeUndefined();
   });
 });
 
