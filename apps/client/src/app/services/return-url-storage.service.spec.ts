@@ -1,3 +1,6 @@
+import { TestBed } from '@angular/core/testing';
+import { MatSnackBar } from '@angular/material/snack-bar';
+
 import {
   KEY_RETURN_URL,
   ReturnUrlStorageService,
@@ -31,6 +34,8 @@ describe('getSafeReturnUrl', () => {
     '',
     '/',
     '/auth/some.jwt.token',
+    '/Auth/some.jwt.token',
+    '/START',
     '/webauthn',
     '/start',
     '/start?x=1',
@@ -51,17 +56,22 @@ describe('getSafeReturnUrl', () => {
   });
 
   it('rejects an over-long string', () => {
-    expect(getSafeReturnUrl('/' + 'a'.repeat(512))).toBeUndefined();
+    expect(getSafeReturnUrl('/' + 'a'.repeat(2048))).toBeUndefined();
   });
 });
 
 describe('ReturnUrlStorageService', () => {
   let service: ReturnUrlStorageService;
+  let snackBarOpen: jest.Mock;
 
   beforeEach(() => {
     window.sessionStorage.clear();
     window.localStorage.clear();
-    service = new ReturnUrlStorageService();
+    snackBarOpen = jest.fn();
+    TestBed.configureTestingModule({
+      providers: [{ provide: MatSnackBar, useValue: { open: snackBarOpen } }]
+    });
+    service = TestBed.inject(ReturnUrlStorageService);
   });
 
   it('consumeReturnUrl returns a valid value and removes the key', () => {
@@ -76,6 +86,22 @@ describe('ReturnUrlStorageService', () => {
 
     expect(service.consumeReturnUrl()).toBeUndefined();
     expect(window.sessionStorage.getItem(KEY_RETURN_URL)).toBeNull();
+  });
+
+  it('consumeReturnUrl shows an error toast when the stored value is rejected', () => {
+    window.sessionStorage.setItem(KEY_RETURN_URL, 'https://evil.com');
+
+    service.consumeReturnUrl();
+
+    expect(snackBarOpen).toHaveBeenCalledTimes(1);
+  });
+
+  it('consumeReturnUrl shows no toast without a value or with a valid one', () => {
+    service.consumeReturnUrl();
+    window.sessionStorage.setItem(KEY_RETURN_URL, '/accounts');
+    service.consumeReturnUrl();
+
+    expect(snackBarOpen).not.toHaveBeenCalled();
   });
 
   it('getReturnUrl does not remove the key', () => {

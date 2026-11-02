@@ -1,10 +1,13 @@
 import { internalRoutes, publicRoutes } from '@ghostfolio/common/routes/routes';
 
-import { Service } from '@angular/core';
+import { Service, inject } from '@angular/core';
+import { MatSnackBar } from '@angular/material/snack-bar';
+
+import ms from 'ms';
 
 export const KEY_RETURN_URL = 'gf-return-url';
 
-const MAX_RETURN_URL_LENGTH = 512;
+const MAX_RETURN_URL_LENGTH = 2048;
 
 /**
  * Returns `aUrl` unchanged (never decoded) if it is a safe in-app router URL,
@@ -71,9 +74,11 @@ export function getSafeReturnUrl(aUrl: unknown): string | undefined {
     ...Object.values(publicRoutes).map(({ path }) => {
       return path;
     })
-  ];
+  ].map((path) => {
+    return path.toLowerCase();
+  });
 
-  if (blockedPaths.includes(firstSegment)) {
+  if (blockedPaths.includes(firstSegment.toLowerCase())) {
     return undefined;
   }
 
@@ -82,12 +87,24 @@ export function getSafeReturnUrl(aUrl: unknown): string | undefined {
 
 @Service()
 export class ReturnUrlStorageService {
+  private readonly snackBar = inject(MatSnackBar);
+
   public consumeReturnUrl(): string | undefined {
     const value = window.sessionStorage.getItem(KEY_RETURN_URL);
 
     this.removeReturnUrl();
 
-    return getSafeReturnUrl(value);
+    const safeUrl = getSafeReturnUrl(value);
+
+    if (value !== null && !safeUrl) {
+      this.snackBar.open(
+        $localize`The requested page could not be opened.`,
+        undefined,
+        { duration: ms('6 seconds') }
+      );
+    }
+
+    return safeUrl;
   }
 
   public getReturnUrl(): string | undefined {
