@@ -9,6 +9,16 @@ export const KEY_RETURN_URL = 'gf-return-url';
 
 const MAX_RETURN_URL_LENGTH = 2048;
 
+const BLOCKED_PATHS = [
+  internalRoutes.auth.path,
+  internalRoutes.webauthn.path,
+  ...Object.values(publicRoutes).map(({ path }) => {
+    return path;
+  })
+].map((path) => {
+  return path.toLowerCase();
+});
+
 /**
  * Returns `aUrl` unchanged (never decoded) if it is a safe in-app router URL,
  * otherwise `undefined`.
@@ -70,17 +80,7 @@ export function getSafeReturnUrl(aUrl: unknown): string | undefined {
 
   const firstSegment = decodeURIComponent(rawPath.slice(1).split(/[/;(]/)[0]);
 
-  const blockedPaths = [
-    internalRoutes.auth.path,
-    internalRoutes.webauthn.path,
-    ...Object.values(publicRoutes).map(({ path }) => {
-      return path;
-    })
-  ].map((path) => {
-    return path.toLowerCase();
-  });
-
-  if (blockedPaths.includes(firstSegment.toLowerCase())) {
+  if (BLOCKED_PATHS.includes(firstSegment.toLowerCase())) {
     return undefined;
   }
 

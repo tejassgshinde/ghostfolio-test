@@ -10,6 +10,7 @@ import {
 describe('getSafeReturnUrl', () => {
   it.each([
     '/accounts?x=1',
+    '/accounts?tab=1',
     '/portfolio/activities?type=BUY',
     '/home',
     '/zen',
