@@ -28,7 +28,7 @@ describe('GfHeaderComponent', () => {
   beforeEach(async () => {
     document.documentElement.lang = 'en';
     userLanguage = 'en';
-    window.sessionStorage.clear();
+    window.localStorage.clear();
 
     router = { navigate: jest.fn(), navigateByUrl: jest.fn() };
 
@@ -85,23 +85,23 @@ describe('GfHeaderComponent', () => {
   });
 
   afterEach(() => {
-    window.sessionStorage.clear();
+    window.localStorage.clear();
   });
 
   it('navigates to the stored return URL and removes the key', () => {
-    window.sessionStorage.setItem(KEY_RETURN_URL, '/accounts?x=1');
+    window.localStorage.setItem(KEY_RETURN_URL, '/accounts?x=1');
 
     openLoginDialog();
 
     expect(router.navigateByUrl).toHaveBeenCalledWith('/accounts?x=1');
     expect(router.navigate).not.toHaveBeenCalled();
-    expect(window.sessionStorage.getItem(KEY_RETURN_URL)).toBeNull();
+    expect(window.localStorage.getItem(KEY_RETURN_URL)).toBeNull();
   });
 
   it('passes an encoded query to navigateByUrl unchanged', () => {
     const url = '/portfolio/activities?name=BRK%20B';
 
-    window.sessionStorage.setItem(KEY_RETURN_URL, url);
+    window.localStorage.setItem(KEY_RETURN_URL, url);
 
     openLoginDialog();
 
@@ -117,20 +117,20 @@ describe('GfHeaderComponent', () => {
   });
 
   it('navigates to the root for an external return URL', () => {
-    window.sessionStorage.setItem(KEY_RETURN_URL, 'https://evil.com');
+    window.localStorage.setItem(KEY_RETURN_URL, 'https://evil.com');
 
     openLoginDialog();
 
     expect(router.navigate).toHaveBeenCalledWith(['/']);
     expect(router.navigateByUrl).not.toHaveBeenCalled();
-    expect(window.sessionStorage.getItem(KEY_RETURN_URL)).toBeNull();
+    expect(window.localStorage.getItem(KEY_RETURN_URL)).toBeNull();
   });
 
   it('consumes the return URL on a language mismatch', () => {
     // jsdom cannot observe `window.location.href`, so the full URL is not
     // asserted here
     userLanguage = 'de';
-    window.sessionStorage.setItem(KEY_RETURN_URL, '/accounts?x=1');
+    window.localStorage.setItem(KEY_RETURN_URL, '/accounts?x=1');
 
     try {
       openLoginDialog();
@@ -138,7 +138,7 @@ describe('GfHeaderComponent', () => {
       // jsdom: navigation not implemented
     }
 
-    expect(window.sessionStorage.getItem(KEY_RETURN_URL)).toBeNull();
+    expect(window.localStorage.getItem(KEY_RETURN_URL)).toBeNull();
     expect(router.navigateByUrl).not.toHaveBeenCalled();
     expect(router.navigate).not.toHaveBeenCalled();
   });

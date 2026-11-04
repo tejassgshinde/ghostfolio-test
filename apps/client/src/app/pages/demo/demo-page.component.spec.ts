@@ -13,7 +13,7 @@ describe('GfDemoPageComponent', () => {
   let tokenStorageService: { getToken: jest.Mock; saveToken: jest.Mock };
 
   beforeEach(() => {
-    window.sessionStorage.clear();
+    window.localStorage.clear();
 
     router = { navigate: jest.fn(), navigateByUrl: jest.fn() };
     tokenStorageService = {
@@ -44,11 +44,11 @@ describe('GfDemoPageComponent', () => {
   });
 
   afterEach(() => {
-    window.sessionStorage.clear();
+    window.localStorage.clear();
   });
 
   it('never uses a stored target and leaves it in storage', () => {
-    window.sessionStorage.setItem(KEY_RETURN_URL, '/accounts?x=1');
+    window.localStorage.setItem(KEY_RETURN_URL, '/accounts?x=1');
 
     TestBed.createComponent(GfDemoPageComponent).componentInstance.ngOnInit();
 
@@ -58,6 +58,6 @@ describe('GfDemoPageComponent', () => {
     );
     expect(router.navigate).toHaveBeenCalledWith(['/']);
     expect(router.navigateByUrl).not.toHaveBeenCalled();
-    expect(window.sessionStorage.getItem(KEY_RETURN_URL)).toBe('/accounts?x=1');
+    expect(window.localStorage.getItem(KEY_RETURN_URL)).toBe('/accounts?x=1');
   });
 });

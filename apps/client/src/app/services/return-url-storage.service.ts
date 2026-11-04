@@ -41,7 +41,9 @@ export function getSafeReturnUrl(aUrl: unknown): string | undefined {
     return undefined;
   }
 
-  // 5. Decoded path portion must not become protocol-relative
+  // 5. Decode the path before checking for `//`: an encoded `/%2F%2Fevil.com`
+  // or `/%5Cevil.com` passes the raw checks above but decodes to a
+  // protocol-relative or backslash path. The raw value is still returned.
   const pathEnd = aUrl.search(/[?#]/);
   const rawPath = pathEnd === -1 ? aUrl : aUrl.slice(0, pathEnd);
   const decodedPath = decodeURIComponent(rawPath);
@@ -90,7 +92,7 @@ export class ReturnUrlStorageService {
   private readonly snackBar = inject(MatSnackBar);
 
   public consumeReturnUrl(): string | undefined {
-    const value = window.sessionStorage.getItem(KEY_RETURN_URL);
+    const value = window.localStorage.getItem(KEY_RETURN_URL);
 
     this.removeReturnUrl();
 
@@ -108,18 +110,18 @@ export class ReturnUrlStorageService {
   }
 
   public getReturnUrl(): string | undefined {
-    return getSafeReturnUrl(window.sessionStorage.getItem(KEY_RETURN_URL));
+    return getSafeReturnUrl(window.localStorage.getItem(KEY_RETURN_URL));
   }
 
   public removeReturnUrl() {
-    window.sessionStorage.removeItem(KEY_RETURN_URL);
+    window.localStorage.removeItem(KEY_RETURN_URL);
   }
 
   public saveReturnUrl(aUrl: string) {
     const safeUrl = getSafeReturnUrl(aUrl);
 
     if (safeUrl) {
-      window.sessionStorage.setItem(KEY_RETURN_URL, safeUrl);
+      window.localStorage.setItem(KEY_RETURN_URL, safeUrl);
     } else {
       this.removeReturnUrl();
     }

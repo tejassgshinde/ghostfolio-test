@@ -37,17 +37,17 @@ describe('UserService', () => {
 
   describe('signOut', () => {
     it('keeps the stored return target and wipes other session keys', () => {
-      window.sessionStorage.setItem(KEY_RETURN_URL, '/accounts?x=1');
-      window.sessionStorage.setItem('other', 'value');
+      window.localStorage.setItem(KEY_RETURN_URL, '/accounts?x=1');
       window.localStorage.setItem('other', 'value');
+      window.sessionStorage.setItem('other', 'value');
 
       userService.signOut();
 
-      expect(window.sessionStorage.getItem(KEY_RETURN_URL)).toBe(
+      expect(window.localStorage.getItem(KEY_RETURN_URL)).toBe(
         '/accounts?x=1'
       );
-      expect(window.sessionStorage.getItem('other')).toBeNull();
       expect(window.localStorage.getItem('other')).toBeNull();
+      expect(window.sessionStorage.getItem('other')).toBeNull();
     });
 
     it('does not store anything without a return target', () => {
@@ -56,14 +56,15 @@ describe('UserService', () => {
       userService.signOut();
 
       expect(window.sessionStorage.length).toBe(0);
+      expect(window.localStorage.length).toBe(0);
     });
 
     it('drops an unsafe stored return target', () => {
-      window.sessionStorage.setItem(KEY_RETURN_URL, 'https://evil.com');
+      window.localStorage.setItem(KEY_RETURN_URL, 'https://evil.com');
 
       userService.signOut();
 
-      expect(window.sessionStorage.getItem(KEY_RETURN_URL)).toBeNull();
+      expect(window.localStorage.getItem(KEY_RETURN_URL)).toBeNull();
     });
 
     it('keeps utm_source', () => {

@@ -18,7 +18,7 @@ describe('GfWebauthnPageComponent', () => {
   }
 
   beforeEach(() => {
-    window.sessionStorage.clear();
+    window.localStorage.clear();
 
     router = { navigate: jest.fn(), navigateByUrl: jest.fn() };
     tokenStorageService = { saveToken: jest.fn() };
@@ -42,12 +42,12 @@ describe('GfWebauthnPageComponent', () => {
   });
 
   afterEach(() => {
-    window.sessionStorage.clear();
+    window.localStorage.clear();
   });
 
   describe('signIn', () => {
     it('navigates to the stored target and removes the key', () => {
-      window.sessionStorage.setItem(KEY_RETURN_URL, '/accounts?x=1');
+      window.localStorage.setItem(KEY_RETURN_URL, '/accounts?x=1');
 
       createComponent().signIn();
 
@@ -57,7 +57,7 @@ describe('GfWebauthnPageComponent', () => {
       );
       expect(router.navigateByUrl).toHaveBeenCalledWith('/accounts?x=1');
       expect(router.navigate).not.toHaveBeenCalled();
-      expect(window.sessionStorage.getItem(KEY_RETURN_URL)).toBeNull();
+      expect(window.localStorage.getItem(KEY_RETURN_URL)).toBeNull();
     });
 
     it('navigates to home without a stored target', () => {
@@ -68,19 +68,19 @@ describe('GfWebauthnPageComponent', () => {
     });
 
     it('navigates to home for an external target and removes the key', () => {
-      window.sessionStorage.setItem(KEY_RETURN_URL, '//evil.com');
+      window.localStorage.setItem(KEY_RETURN_URL, '//evil.com');
 
       createComponent().signIn();
 
       expect(router.navigate).toHaveBeenCalledWith(['/']);
       expect(router.navigateByUrl).not.toHaveBeenCalled();
-      expect(window.sessionStorage.getItem(KEY_RETURN_URL)).toBeNull();
+      expect(window.localStorage.getItem(KEY_RETURN_URL)).toBeNull();
     });
   });
 
   describe('deregisterDevice', () => {
     it('navigates to home and does not consume a stored target', () => {
-      window.sessionStorage.setItem(KEY_RETURN_URL, '/accounts?x=1');
+      window.localStorage.setItem(KEY_RETURN_URL, '/accounts?x=1');
 
       // ngOnInit is not triggered because detectChanges() is never called
       const component = createComponent();
@@ -89,7 +89,7 @@ describe('GfWebauthnPageComponent', () => {
 
       expect(router.navigate).toHaveBeenCalledWith(['/']);
       expect(router.navigateByUrl).not.toHaveBeenCalled();
-      expect(window.sessionStorage.getItem(KEY_RETURN_URL)).toBe(
+      expect(window.localStorage.getItem(KEY_RETURN_URL)).toBe(
         '/accounts?x=1'
       );
     });

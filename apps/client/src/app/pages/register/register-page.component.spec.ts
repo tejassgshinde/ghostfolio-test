@@ -26,7 +26,7 @@ describe('GfRegisterPageComponent', () => {
   }
 
   beforeEach(() => {
-    window.sessionStorage.clear();
+    window.localStorage.clear();
 
     dialog = { open: jest.fn() };
     router = { navigate: jest.fn(), navigateByUrl: jest.fn() };
@@ -60,11 +60,11 @@ describe('GfRegisterPageComponent', () => {
   });
 
   afterEach(() => {
-    window.sessionStorage.clear();
+    window.localStorage.clear();
   });
 
   it('navigates to the stored target and removes the key', () => {
-    window.sessionStorage.setItem(KEY_RETURN_URL, '/accounts?x=1');
+    window.localStorage.setItem(KEY_RETURN_URL, '/accounts?x=1');
 
     closeDialogWith('auth-token');
 
@@ -74,11 +74,11 @@ describe('GfRegisterPageComponent', () => {
     );
     expect(router.navigateByUrl).toHaveBeenCalledWith('/accounts?x=1');
     expect(router.navigate).not.toHaveBeenCalled();
-    expect(window.sessionStorage.getItem(KEY_RETURN_URL)).toBeNull();
+    expect(window.localStorage.getItem(KEY_RETURN_URL)).toBeNull();
   });
 
   it('passes a stored encoded query to navigateByUrl unchanged', () => {
-    window.sessionStorage.setItem(KEY_RETURN_URL, '/accounts?q=100%25');
+    window.localStorage.setItem(KEY_RETURN_URL, '/accounts?q=100%25');
 
     closeDialogWith('auth-token');
 
@@ -93,23 +93,23 @@ describe('GfRegisterPageComponent', () => {
   });
 
   it('navigates to home for an external target and removes the key', () => {
-    window.sessionStorage.setItem(KEY_RETURN_URL, '//evil.com');
+    window.localStorage.setItem(KEY_RETURN_URL, '//evil.com');
 
     closeDialogWith('auth-token');
 
     expect(router.navigate).toHaveBeenCalledWith(['/']);
     expect(router.navigateByUrl).not.toHaveBeenCalled();
-    expect(window.sessionStorage.getItem(KEY_RETURN_URL)).toBeNull();
+    expect(window.localStorage.getItem(KEY_RETURN_URL)).toBeNull();
   });
 
   it('does nothing when the dialog closes without a token', () => {
-    window.sessionStorage.setItem(KEY_RETURN_URL, '/accounts?x=1');
+    window.localStorage.setItem(KEY_RETURN_URL, '/accounts?x=1');
 
     closeDialogWith(undefined);
 
     expect(tokenStorageService.saveToken).not.toHaveBeenCalled();
     expect(router.navigate).not.toHaveBeenCalled();
     expect(router.navigateByUrl).not.toHaveBeenCalled();
-    expect(window.sessionStorage.getItem(KEY_RETURN_URL)).toBe('/accounts?x=1');
+    expect(window.localStorage.getItem(KEY_RETURN_URL)).toBe('/accounts?x=1');
   });
 });

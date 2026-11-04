@@ -39,22 +39,22 @@ describe('GfAuthPageComponent', () => {
   };
 
   beforeEach(() => {
-    window.sessionStorage.clear();
+    window.localStorage.clear();
   });
 
   afterEach(() => {
-    window.sessionStorage.clear();
+    window.localStorage.clear();
   });
 
   it('navigates to the stored return URL and removes the key', async () => {
-    window.sessionStorage.setItem(KEY_RETURN_URL, '/accounts?x=1');
+    window.localStorage.setItem(KEY_RETURN_URL, '/accounts?x=1');
 
     await create({ jwt: 'x' });
 
     expect(tokenStorageService.saveToken).toHaveBeenCalledWith('x', false);
     expect(router.navigateByUrl).toHaveBeenCalledWith('/accounts?x=1');
     expect(router.navigate).not.toHaveBeenCalled();
-    expect(window.sessionStorage.getItem(KEY_RETURN_URL)).toBeNull();
+    expect(window.localStorage.getItem(KEY_RETURN_URL)).toBeNull();
   });
 
   it('navigates to the root without a stored return URL', async () => {
@@ -65,7 +65,7 @@ describe('GfAuthPageComponent', () => {
   });
 
   it('navigates to the root for an external return URL', async () => {
-    window.sessionStorage.setItem(KEY_RETURN_URL, 'https://evil.com');
+    window.localStorage.setItem(KEY_RETURN_URL, 'https://evil.com');
 
     await create({ jwt: 'x' });
 
@@ -74,13 +74,13 @@ describe('GfAuthPageComponent', () => {
   });
 
   it('navigates to the root and keeps the return URL without a jwt', async () => {
-    window.sessionStorage.setItem(KEY_RETURN_URL, '/accounts?x=1');
+    window.localStorage.setItem(KEY_RETURN_URL, '/accounts?x=1');
 
     await create({});
 
     expect(router.navigate).toHaveBeenCalledWith(['/']);
     expect(router.navigateByUrl).not.toHaveBeenCalled();
-    expect(window.sessionStorage.getItem(KEY_RETURN_URL)).toBe(
+    expect(window.localStorage.getItem(KEY_RETURN_URL)).toBe(
       '/accounts?x=1'
     );
   });

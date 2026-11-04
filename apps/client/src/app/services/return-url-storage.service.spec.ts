@@ -65,7 +65,6 @@ describe('ReturnUrlStorageService', () => {
   let snackBarOpen: jest.Mock;
 
   beforeEach(() => {
-    window.sessionStorage.clear();
     window.localStorage.clear();
     snackBarOpen = jest.fn();
     TestBed.configureTestingModule({
@@ -75,21 +74,21 @@ describe('ReturnUrlStorageService', () => {
   });
 
   it('consumeReturnUrl returns a valid value and removes the key', () => {
-    window.sessionStorage.setItem(KEY_RETURN_URL, '/accounts?x=1');
+    window.localStorage.setItem(KEY_RETURN_URL, '/accounts?x=1');
 
     expect(service.consumeReturnUrl()).toBe('/accounts?x=1');
-    expect(window.sessionStorage.getItem(KEY_RETURN_URL)).toBeNull();
+    expect(window.localStorage.getItem(KEY_RETURN_URL)).toBeNull();
   });
 
   it('consumeReturnUrl removes the key even if the value is invalid', () => {
-    window.sessionStorage.setItem(KEY_RETURN_URL, 'https://evil.com');
+    window.localStorage.setItem(KEY_RETURN_URL, 'https://evil.com');
 
     expect(service.consumeReturnUrl()).toBeUndefined();
-    expect(window.sessionStorage.getItem(KEY_RETURN_URL)).toBeNull();
+    expect(window.localStorage.getItem(KEY_RETURN_URL)).toBeNull();
   });
 
   it('consumeReturnUrl shows an error toast when the stored value is rejected', () => {
-    window.sessionStorage.setItem(KEY_RETURN_URL, 'https://evil.com');
+    window.localStorage.setItem(KEY_RETURN_URL, 'https://evil.com');
 
     service.consumeReturnUrl();
 
@@ -98,25 +97,25 @@ describe('ReturnUrlStorageService', () => {
 
   it('consumeReturnUrl shows no toast without a value or with a valid one', () => {
     service.consumeReturnUrl();
-    window.sessionStorage.setItem(KEY_RETURN_URL, '/accounts');
+    window.localStorage.setItem(KEY_RETURN_URL, '/accounts');
     service.consumeReturnUrl();
 
     expect(snackBarOpen).not.toHaveBeenCalled();
   });
 
   it('getReturnUrl does not remove the key', () => {
-    window.sessionStorage.setItem(KEY_RETURN_URL, '/home');
+    window.localStorage.setItem(KEY_RETURN_URL, '/home');
 
     expect(service.getReturnUrl()).toBe('/home');
-    expect(window.sessionStorage.getItem(KEY_RETURN_URL)).toBe('/home');
+    expect(window.localStorage.getItem(KEY_RETURN_URL)).toBe('/home');
   });
 
   it('saveReturnUrl with an invalid value removes an existing key', () => {
-    window.sessionStorage.setItem(KEY_RETURN_URL, '/home');
+    window.localStorage.setItem(KEY_RETURN_URL, '/home');
 
     service.saveReturnUrl('//evil.com');
 
-    expect(window.sessionStorage.getItem(KEY_RETURN_URL)).toBeNull();
+    expect(window.localStorage.getItem(KEY_RETURN_URL)).toBeNull();
   });
 
   it('saveReturnUrl then getReturnUrl round-trips an encoded query unchanged', () => {
@@ -125,12 +124,6 @@ describe('ReturnUrlStorageService', () => {
     service.saveReturnUrl(url);
 
     expect(service.getReturnUrl()).toBe(url);
-  });
-
-  it('only uses sessionStorage', () => {
-    service.saveReturnUrl('/accounts');
-
-    expect(window.localStorage.getItem(KEY_RETURN_URL)).toBeNull();
   });
 
   it('removeReturnUrl removes the key', () => {

@@ -33,7 +33,7 @@ describe('AuthGuard', () => {
   }
 
   beforeEach(() => {
-    window.sessionStorage.clear();
+    window.localStorage.clear();
 
     router = { navigate: jest.fn() };
     userService = { get: jest.fn(), reset: jest.fn() };
@@ -61,7 +61,7 @@ describe('AuthGuard', () => {
     it('stores the requested page and navigates to start', async () => {
       await expect(canActivate(returnUrl)).resolves.toBe(false);
 
-      expect(window.sessionStorage.getItem(KEY_RETURN_URL)).toBe(returnUrl);
+      expect(window.localStorage.getItem(KEY_RETURN_URL)).toBe(returnUrl);
       expect(router.navigate).toHaveBeenCalledWith(
         publicRoutes.start.routerLink
       );
@@ -72,7 +72,7 @@ describe('AuthGuard', () => {
 
       await canActivate(url);
 
-      expect(window.sessionStorage.getItem(KEY_RETURN_URL)).toBe(url);
+      expect(window.localStorage.getItem(KEY_RETURN_URL)).toBe(url);
     });
 
     it('stores nothing for the start page', async () => {
@@ -80,36 +80,36 @@ describe('AuthGuard', () => {
         true
       );
 
-      expect(window.sessionStorage.getItem(KEY_RETURN_URL)).toBeNull();
+      expect(window.localStorage.getItem(KEY_RETURN_URL)).toBeNull();
       expect(router.navigate).not.toHaveBeenCalled();
     });
 
     it('keeps the stored page for the start page', async () => {
-      window.sessionStorage.setItem(KEY_RETURN_URL, returnUrl);
+      window.localStorage.setItem(KEY_RETURN_URL, returnUrl);
 
       await canActivate(`/${publicRoutes.start.path}`);
 
-      expect(window.sessionStorage.getItem(KEY_RETURN_URL)).toBe(returnUrl);
+      expect(window.localStorage.getItem(KEY_RETURN_URL)).toBe(returnUrl);
     });
 
     it('clears the stored page on another public page', async () => {
-      window.sessionStorage.setItem(KEY_RETURN_URL, returnUrl);
+      window.localStorage.setItem(KEY_RETURN_URL, returnUrl);
 
       await expect(canActivate(`/${publicRoutes.pricing.path}`)).resolves.toBe(
         true
       );
 
-      expect(window.sessionStorage.getItem(KEY_RETURN_URL)).toBeNull();
+      expect(window.localStorage.getItem(KEY_RETURN_URL)).toBeNull();
     });
 
     it('keeps the stored page on the register page', async () => {
-      window.sessionStorage.setItem(KEY_RETURN_URL, returnUrl);
+      window.localStorage.setItem(KEY_RETURN_URL, returnUrl);
 
       await expect(
         canActivate(`/${publicRoutes.register.path}`)
       ).resolves.toBe(true);
 
-      expect(window.sessionStorage.getItem(KEY_RETURN_URL)).toBe(returnUrl);
+      expect(window.localStorage.getItem(KEY_RETURN_URL)).toBe(returnUrl);
     });
 
     it('navigates to demo without storing for utm_source=ios', async () => {
@@ -120,7 +120,7 @@ describe('AuthGuard', () => {
       expect(router.navigate).toHaveBeenCalledWith(
         publicRoutes.demo.routerLink
       );
-      expect(window.sessionStorage.getItem(KEY_RETURN_URL)).toBeNull();
+      expect(window.localStorage.getItem(KEY_RETURN_URL)).toBeNull();
     });
 
     it('navigates to register without storing for utm_source=trusted-web-activity', async () => {
@@ -131,7 +131,7 @@ describe('AuthGuard', () => {
       expect(router.navigate).toHaveBeenCalledWith(
         publicRoutes.register.routerLink
       );
-      expect(window.sessionStorage.getItem(KEY_RETURN_URL)).toBeNull();
+      expect(window.localStorage.getItem(KEY_RETURN_URL)).toBeNull();
     });
   });
 
@@ -143,7 +143,7 @@ describe('AuthGuard', () => {
     }
 
     beforeEach(() => {
-      window.sessionStorage.setItem(KEY_RETURN_URL, returnUrl);
+      window.localStorage.setItem(KEY_RETURN_URL, returnUrl);
     });
 
     it('clears the stored page', async () => {
@@ -151,7 +151,7 @@ describe('AuthGuard', () => {
 
       await expect(canActivate('/accounts')).resolves.toBe(true);
 
-      expect(window.sessionStorage.getItem(KEY_RETURN_URL)).toBeNull();
+      expect(window.localStorage.getItem(KEY_RETURN_URL)).toBeNull();
     });
 
     it('sends a Zen user at home to Zen', async () => {
