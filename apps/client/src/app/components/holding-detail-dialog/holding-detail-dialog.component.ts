@@ -662,12 +662,8 @@ export class GfHoldingDetailDialogComponent implements OnInit {
   }
 
   protected onExport() {
-    const activityIds = this.dataSource.data.map(({ id }) => {
-      return id;
-    });
-
     this.dataService
-      .fetchExport({ activityIds })
+      .fetchExport({ filters: this.getActivityFilters() })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((data) => {
         downloadAsFile({

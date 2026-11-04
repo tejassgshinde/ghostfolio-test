@@ -198,12 +198,8 @@ export class GfAccountDetailDialogComponent implements OnInit {
   }
 
   protected onExport() {
-    const activityIds = this.dataSource.data.map(({ id }) => {
-      return id;
-    });
-
     this.dataService
-      .fetchExport({ activityIds })
+      .fetchExport({ filters: [{ id: this.data.accountId, type: 'ACCOUNT' }] })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((data) => {
         downloadAsFile({

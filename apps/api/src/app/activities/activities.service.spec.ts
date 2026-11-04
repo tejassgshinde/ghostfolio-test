@@ -249,6 +249,48 @@ describe('ActivitiesService', () => {
       );
     });
 
+    it('scopes the query to the user and filters by account', async () => {
+      const findMany = jest.fn().mockResolvedValue([]);
+
+      const service = new ActivitiesService(
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        {
+          order: {
+            findMany,
+            count: jest.fn().mockResolvedValue(0)
+          }
+        } as unknown as PrismaService, // ts-escape-ok: partial mock, only order is used
+        {
+          getSymbolProfiles: jest.fn().mockResolvedValue([])
+        } as unknown as SymbolProfileService, // ts-escape-ok: partial mock, only getSymbolProfiles is used
+        null
+      );
+
+      await service.getActivities({
+        filters: [{ id: 'account-a', type: 'ACCOUNT' }],
+        userCurrency: 'USD',
+        userId: 'user-a'
+      });
+
+      expect(findMany).toHaveBeenCalledTimes(1);
+      expect(findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            accountId: { in: ['account-a'] },
+            userId: 'user-a'
+          })
+        })
+      );
+    });
+
     async function getDateConditions(dateRange: DateRange) {
       const findMany = jest.fn().mockResolvedValue([]);
 
