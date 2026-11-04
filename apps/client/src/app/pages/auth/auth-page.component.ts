@@ -1,3 +1,4 @@
+import { ReturnUrlStorageService } from '@ghostfolio/client/services/return-url-storage.service';
 import {
   KEY_STAY_SIGNED_IN,
   SettingsStorageService
@@ -23,6 +24,7 @@ export class GfAuthPageComponent implements OnInit {
   public constructor(
     private destroyRef: DestroyRef,
     private route: ActivatedRoute,
+    private returnUrlStorageService: ReturnUrlStorageService,
     private router: Router,
     private settingsStorageService: SettingsStorageService,
     private tokenStorageService: TokenStorageService
@@ -39,7 +41,15 @@ export class GfAuthPageComponent implements OnInit {
           this.settingsStorageService.getSetting(KEY_STAY_SIGNED_IN) === 'true'
         );
 
-        this.router.navigate(['/']);
+        const returnUrl = jwt
+          ? this.returnUrlStorageService.consumeReturnUrl()
+          : undefined;
+
+        if (returnUrl) {
+          this.router.navigateByUrl(returnUrl);
+        } else {
+          this.router.navigate(['/']);
+        }
       });
   }
 }

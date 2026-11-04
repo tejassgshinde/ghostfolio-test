@@ -1,3 +1,4 @@
+import { ReturnUrlStorageService } from '@ghostfolio/client/services/return-url-storage.service';
 import { WebAuthnService } from '@ghostfolio/client/services/web-authn.service';
 import { Filter, User } from '@ghostfolio/common/interfaces';
 import { hasPermission, permissions } from '@ghostfolio/common/permissions';
@@ -28,6 +29,7 @@ export class UserService extends ObservableStore<UserStoreState> {
   private readonly deviceDetectorService = inject(DeviceDetectorService);
   private readonly dialog = inject(MatDialog);
   private readonly http = inject(HttpClient);
+  private readonly returnUrlStorageService = inject(ReturnUrlStorageService);
   private readonly webAuthnService = inject(WebAuthnService);
 
   public constructor() {
@@ -99,6 +101,7 @@ export class UserService extends ObservableStore<UserStoreState> {
   }
 
   public signOut() {
+    const returnUrl = this.returnUrlStorageService.getReturnUrl();
     const utmSource = window.localStorage.getItem('utm_source');
 
     if (this.webAuthnService.isEnabled()) {
@@ -107,6 +110,10 @@ export class UserService extends ObservableStore<UserStoreState> {
 
     window.localStorage.clear();
     window.sessionStorage.clear();
+
+    if (returnUrl) {
+      this.returnUrlStorageService.saveReturnUrl(returnUrl);
+    }
 
     void this.clearAllCookies();
 

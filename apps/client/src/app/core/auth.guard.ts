@@ -1,3 +1,4 @@
+import { ReturnUrlStorageService } from '@ghostfolio/client/services/return-url-storage.service';
 import { SettingsStorageService } from '@ghostfolio/client/services/settings-storage.service';
 import { UserService } from '@ghostfolio/client/services/user/user.service';
 import { internalRoutes, publicRoutes } from '@ghostfolio/common/routes/routes';
@@ -15,6 +16,7 @@ import { catchError, finalize } from 'rxjs/operators';
 @Service()
 export class AuthGuard {
   private readonly dataService = inject(DataService);
+  private readonly returnUrlStorageService = inject(ReturnUrlStorageService);
   private readonly router = inject(Router);
   private readonly settingsStorageService = inject(SettingsStorageService);
   private readonly userService = inject(UserService);
@@ -27,6 +29,8 @@ export class AuthGuard {
     }
 
     return new Promise<boolean>((resolve) => {
+      let matchedPublicPageRoute: string | undefined;
+
       this.userService
         .get()
         .pipe(
@@ -46,12 +50,26 @@ export class AuthGuard {
                 })
                 .some((publicPageRoute) => {
                   const [, url] = decodeURIComponent(state.url).split('/');
-                  return `/${url}` === publicPageRoute;
+                  const isMatch = `/${url}` === publicPageRoute;
+
+                  if (isMatch) {
+                    matchedPublicPageRoute = publicPageRoute;
+                  }
+
+                  return isMatch;
                 })
             ) {
+              if (
+                matchedPublicPageRoute !== `/${publicRoutes.start.path}` &&
+                matchedPublicPageRoute !== `/${publicRoutes.register.path}`
+              ) {
+                this.returnUrlStorageService.removeReturnUrl();
+              }
+
               resolve(true);
               return EMPTY;
             } else if (state.url !== '/start') {
+              this.returnUrlStorageService.saveReturnUrl(state.url);
               this.router.navigate(publicRoutes.start.routerLink);
               resolve(false);
               return EMPTY;
@@ -65,6 +83,8 @@ export class AuthGuard {
           })
         )
         .subscribe((user) => {
+          this.returnUrlStorageService.removeReturnUrl();
+
           const userLanguage = user?.settings?.language;
 
           if (userLanguage && document.documentElement.lang !== userLanguage) {
